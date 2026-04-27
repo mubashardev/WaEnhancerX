@@ -1,4 +1,3 @@
 [Added]
-- Call Recording Restored in better way
-
-Note: It is not stable and may have bug of one side audio based on device.
+- Improved Performance
+- Enhanced app branding

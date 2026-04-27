@@ -70,6 +70,7 @@ public class WppCore {
     private static Field conversationJidField;
     private static Field meManagerPhoneJidField;
     private static Object meManagerInstance;
+    private static Object mConversationDelegate;
 
     public static void Initialize(ClassLoader loader, de.robv.android.xposed.XSharedPreferences pref) throws Exception {
         waePrefs = pref;
@@ -129,6 +130,16 @@ public class WppCore {
                 meManagerInstance = param.thisObject;
             }
         });
+
+        if (conversationJidField != null) {
+            XposedBridge.hookAllConstructors(conversationJidField.getDeclaringClass(), new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    mConversationDelegate = param.thisObject;
+                    XposedBridge.log("WAE: Captured conversation delegate: " + mConversationDelegate.getClass().getName());
+                }
+            });
+        }
 
 
         // Load wa database
@@ -667,7 +678,18 @@ public class WppCore {
                 return new FMessageWpp.UserJid();
             ensureConversationJidResolvers(conversation.getClassLoader());
 
-            Object jidObject = resolveJidFromObjectMethods(conversation);
+            Object jidObject = null;
+            
+            // Try using the captured delegate (Upstream optimization)
+            if (mConversationDelegate != null && conversationJidField != null) {
+                try {
+                    jidObject = conversationJidField.get(mConversationDelegate);
+                } catch (Exception ignored) {}
+            }
+
+            if (jidObject == null) {
+                jidObject = resolveJidFromObjectMethods(conversation);
+            }
             if (conversation.getClass().getSimpleName().equals("HomeActivity")) {
                 try {
                     var convFragmentMethod = Unobfuscator.loadHomeConversationFragmentMethod(conversation.getClassLoader());
