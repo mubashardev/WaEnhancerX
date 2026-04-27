@@ -1,10 +1,16 @@
-# WaEnhancer
+# WaEnhancer+ (WaEnhancer Plus)
 <div align="center">
-  <p><strong><a href="https://waenhancer.com" target="_blank" rel="follow">WA Enhancer</a> is a powerful Xposed/LSPosed module that supercharges your WhatsApp experience with advanced privacy, customization, and utility features.</strong></p>
-  <p><strong>Warning:</strong> This module is intended for educational purposes only. Providing these features may violate WhatsApp's Terms of Service. Use it at your own risk. The developer is not responsible for any bans, data loss, or other issues related to the use of this software.</p>
+  <p><strong><a href="https://waenhancer.com" target="_blank" rel="follow">WaEnhancer Plus</a> is a powerful Xposed/LSPosed module that supercharges your WhatsApp experience with advanced privacy, customization, and utility features.</strong></p>
+
+  > **Legal & DMCA Disclaimer:** WaEnhancer Plus is a community-driven, independent fork. It is not affiliated with, endorsed by, or in any way associated with WhatsApp Inc. or Meta Platforms, Inc. This project is provided "as is" for research and educational purposes. Use at your own risk.
 </div>
 
 [![Youtube Video](http://thumb.mubashar.dev/?id=BIrojFtTGJ8)](https://www.youtube.com/watch?v=BIrojFtTGJ8)
+
+## Why WaEnhancer Plus?
+- **Unified LSPosed scope**: Optimized hooks for seamless integration.
+- **Strict Semantic Versioning**: Clear and predictable release cycles.
+- **Embedded Native UI**: Seamlessly integrated settings directly within WhatsApp.
 
 ## Main Features
 
@@ -63,9 +69,9 @@
 ## Installation
 1. Ensure that your device is **Rooted**.
 2. Install the **LSPosed** (Zygisk or Riru version) on your device.
-3. Download and install the **WA Enhancer** APK.
+3. Download and install the **WaEnhancer Plus** APK.
 4. Open the **LSPosed Manager** app.
-5. Enable the **WA Enhancer** module.
+5. Enable the **WaEnhancer Plus** module.
 6. Ensure **WhatsApp** is selected in the scope.
 7. **Force Stop** WhatsApp.
 8. Open WhatsApp and verify the module is active.
