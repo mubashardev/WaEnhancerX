@@ -172,7 +172,14 @@ public class CustomView extends Feature {
         }
 
         if (!loaded) {
-            var sheet = CSSFactory.parseString(cssContent, new URL("https://base.url/"));
+            ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+            StyleSheet sheet;
+            try {
+                Thread.currentThread().setContextClassLoader(CustomView.class.getClassLoader());
+                sheet = CSSFactory.parseString(cssContent, new URL("https://base.url/"));
+            } finally {
+                Thread.currentThread().setContextClassLoader(originalClassLoader);
+            }
             mapIds = new HashMap<>();
             leafMapIds = new HashMap<>();
             buildRuleMaps(sheet);

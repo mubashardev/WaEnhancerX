@@ -14,7 +14,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textview.MaterialTextView;
 import com.waenhancer.R;
-import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.google.android.material.loadingindicator.LoadingIndicator;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -258,7 +258,7 @@ public class BottomSheetHelper {
         com.google.android.material.textview.MaterialTextView tvName = view.findViewById(R.id.bsName);
         com.google.android.material.textview.MaterialTextView tvUsername = view.findViewById(R.id.bsUsername);
 
-        CircularProgressIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
+        LoadingIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
         View contentLayout = view.findViewById(R.id.bsContentLayout);
 
         com.bumptech.glide.Glide.with(context)
@@ -472,7 +472,7 @@ public class BottomSheetHelper {
             });
 
             // com.facebook.shimmer.ShimmerFrameLayout shimmerLayout = view.findViewById(R.id.bsShimmerLayout);
-            CircularProgressIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
+            LoadingIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
             View contentLayout = view.findViewById(R.id.bsContentLayout);
 
             // shimmerLayout.stopShimmer();
@@ -504,7 +504,7 @@ public class BottomSheetHelper {
 
         bottomSheet.show();
 
-        CircularProgressIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
+        LoadingIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
         View contentLayout = view.findViewById(R.id.bsContribContent);
         if (progressIndicator != null) {
             progressIndicator.setVisibility(View.VISIBLE);
@@ -609,7 +609,7 @@ public class BottomSheetHelper {
             com.google.android.material.textview.MaterialTextView tvAdded = view.findViewById(R.id.bsContribAdded);
             com.google.android.material.textview.MaterialTextView tvDeleted = view.findViewById(R.id.bsContribDeleted);
             // com.facebook.shimmer.ShimmerFrameLayout shimmerLayout = view.findViewById(R.id.bsContribShimmer);
-            CircularProgressIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
+            LoadingIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
             View contentLayout = view.findViewById(R.id.bsContribContent);
 
             java.text.NumberFormat format = java.text.NumberFormat.getInstance();

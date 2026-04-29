@@ -21,7 +21,7 @@ import com.waenhancer.activities.base.BaseActivity;
 import com.waenhancer.UpdateChecker;
 import com.google.android.material.tabs.TabLayout;
 // import com.facebook.shimmer.ShimmerFrameLayout;
-import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.google.android.material.loadingindicator.LoadingIndicator;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -43,7 +43,7 @@ public class ChangelogActivity extends BaseActivity {
 
     private RecyclerView recyclerView;
     // private ShimmerFrameLayout shimmerFrameLayout;
-    private CircularProgressIndicator progressIndicator;
+    private LoadingIndicator progressIndicator;
     private TabLayout tabLayout;
     private ChangelogAdapter adapter;
     private final List<JSONObject> stableReleases = new ArrayList<>();

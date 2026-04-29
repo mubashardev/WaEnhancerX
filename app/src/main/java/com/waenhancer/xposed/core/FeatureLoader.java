@@ -312,7 +312,7 @@ public class FeatureLoader {
 
     private static void checkUpdate(@NonNull Activity activity) {
         if (WppCore.getPrivBoolean("need_restart", false)) {
-            WppCore.setPrivBoolean("need_restart", false);
+            WppCore.setPrivBooleanSync("need_restart", false);
             try {
                 new AlertDialogWpp(activity).setMessage(activity.getString(ResId.string.restart_wpp))
                         .setPositiveButton(activity.getString(ResId.string.yes), (dialog, which) -> {
@@ -357,7 +357,7 @@ public class FeatureLoader {
         BroadcastReceiver restartManualReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                WppCore.setPrivBoolean("need_restart", true);
+                WppCore.setPrivBooleanSync("need_restart", true);
             }
         };
         ContextCompat.registerReceiver(mApp, restartManualReceiver,

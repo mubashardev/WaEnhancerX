@@ -76,13 +76,12 @@
 
             </com.facebook.shimmer.ShimmerFrameLayout -->
 
-            <com.google.android.material.progressindicator.CircularProgressIndicator
+            <com.google.android.material.loadingindicator.LoadingIndicator
                 android:id="@+id/expressive_loading_progress"
-                style="@style/Widget.WaEnhancer.CircularProgressIndicator.Expressive"
+                style="@style/Widget.Material3.LoadingIndicator"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center"
-                android:indeterminate="true"
                 android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
@@ -97,11 +96,5 @@
 
     </LinearLayout>
 
-    <ProgressBar
-        android:id="@+id/loading_progress"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center"
-        android:visibility="gone" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

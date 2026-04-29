@@ -1047,6 +1047,11 @@ public class WppCore {
         privPrefs.edit().putBoolean(key, value).apply();
     }
 
+    public static void setPrivBooleanSync(String key, boolean value) {
+        if (privPrefs == null) return;
+        privPrefs.edit().putBoolean(key, value).commit();
+    }
+
 
     public static boolean getPrivBoolean(String key, boolean defaultValue) {
         if (privPrefs == null) return defaultValue;

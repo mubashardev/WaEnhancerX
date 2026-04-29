@@ -259,6 +259,16 @@
                         android:layout_height="wrap_content"
                         android:text="@string/contributors" />
 
+                    <com.google.android.material.loadingindicator.LoadingIndicator
+                        android:id="@+id/expressive_loading_progress"
+                        style="@style/Widget.Material3.LoadingIndicator"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="16dp"
+                        android:visibility="gone" />
+
                     <androidx.recyclerview.widget.RecyclerView
                         android:id="@+id/rvContributors"
                         android:layout_width="match_parent"
