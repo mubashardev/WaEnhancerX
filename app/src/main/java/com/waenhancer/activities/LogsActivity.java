@@ -39,6 +39,7 @@ public class LogsActivity extends BaseActivity {
     private ActivityLogsBinding binding;
     private volatile boolean rootGranted = false;
     private volatile boolean requestingRoot = false;
+    private static final String PREF_ROOT_GRANTED = "root_granted";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -88,11 +89,54 @@ public class LogsActivity extends BaseActivity {
         });
 
         binding.btnGrantRoot.setOnClickListener(v -> requestRootPermission());
-        updateRootUi();
+        
+        // Check root access silently on start
+        checkRootSilently();
     }
 
     public boolean hasRootAccess() {
         return rootGranted;
+    }
+
+    private void checkRootSilently() {
+        new Thread(() -> {
+            // First check if su binary exists anywhere (fast and silent)
+            boolean suExists = false;
+            String[] paths = {"/system/bin/su", "/system/xbin/su", "/system/sbin/su", "/sbin/su", "/vendor/bin/su", "/su/bin/su"};
+            for (String path : paths) {
+                if (new File(path).exists()) {
+                    suExists = true;
+                    break;
+                }
+            }
+
+            if (!suExists) {
+                runOnUiThread(() -> {
+                    rootGranted = false;
+                    updateRootUi();
+                });
+                return;
+            }
+
+            // If su exists, check if we were previously granted access
+            boolean previouslyGranted = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+                    .getBoolean(PREF_ROOT_GRANTED, false);
+            
+            if (previouslyGranted) {
+                // If previously granted, Magisk/KernelSU should allow this silently
+                boolean granted = LogManager.hasRootAccess();
+                runOnUiThread(() -> {
+                    rootGranted = granted;
+                    updateRootUi();
+                });
+            } else {
+                // Never granted before, don't trigger a prompt, just show the button
+                runOnUiThread(() -> {
+                    rootGranted = false;
+                    updateRootUi();
+                });
+            }
+        }).start();
     }
 
     private void requestRootPermission() {
@@ -111,6 +155,11 @@ public class LogsActivity extends BaseActivity {
                 rootGranted = granted;
                 binding.btnGrantRoot.setEnabled(true);
                 binding.btnGrantRoot.setText(R.string.grant_root_access);
+                
+                // Save grant state
+                androidx.preference.PreferenceManager.getDefaultSharedPreferences(this)
+                        .edit().putBoolean(PREF_ROOT_GRANTED, granted).apply();
+
                 if (!granted) {
                     binding.tvRootMessage.setText(R.string.root_required_message_denied);
                     Toast.makeText(this, R.string.root_access_denied, Toast.LENGTH_SHORT).show();

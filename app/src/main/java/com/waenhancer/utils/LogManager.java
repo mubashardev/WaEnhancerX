@@ -156,12 +156,54 @@ public class LogManager {
         String pid = pids[0];
 
         String rawLogcat = runRootCommand("logcat -d -v brief --pid=" + pid);
-        if (rawLogcat == null) {
+        if (rawLogcat == null || rawLogcat.isEmpty()) {
             return;
         }
 
         String normalizedLogs = normalizeLogcat(rawLogcat);
-        replaceLogs(packageName, normalizedLogs);
+        if (normalizedLogs.isEmpty()) {
+            return;
+        }
+
+        String currentLogs = getLogs(packageName);
+        if (currentLogs.isEmpty()) {
+            replaceLogs(packageName, normalizedLogs);
+            return;
+        }
+
+        // Find the last [logcat] line in current logs to avoid duplicates
+        String[] currentLines = currentLogs.split("\n");
+        String lastLogcatLine = null;
+        for (int i = currentLines.length - 1; i >= 0; i--) {
+            if (currentLines[i].startsWith("[logcat]")) {
+                lastLogcatLine = currentLines[i];
+                break;
+            }
+        }
+
+        if (lastLogcatLine == null) {
+            // File has only provider logs, append all logcat logs
+            appendLogs(packageName, normalizedLogs);
+            return;
+        }
+
+        String[] newLines = normalizedLogs.split("\n");
+        int lastIndexInNew = -1;
+        for (int i = newLines.length - 1; i >= 0; i--) {
+            if (newLines[i].equals(lastLogcatLine)) {
+                lastIndexInNew = i;
+                break;
+            }
+        }
+
+        StringBuilder toAppend = new StringBuilder();
+        for (int i = lastIndexInNew + 1; i < newLines.length; i++) {
+            toAppend.append(newLines[i]).append("\n");
+        }
+
+        if (toAppend.length() > 0) {
+            appendLogs(packageName, toAppend.toString());
+        }
     }
 
     private static String normalizeLogcat(String rawLogcat) {
@@ -191,6 +233,7 @@ public class LogManager {
     }
 
     private static void replaceLogs(String packageName, String content) {
+        if (content == null || content.isEmpty()) return;
         File cacheDir = App.getInstance() != null ? App.getInstance().getCacheDir() : null;
         if (cacheDir == null) return;
 
@@ -202,7 +245,25 @@ public class LogManager {
         String fileName = FeatureLoader.PACKAGE_BUSINESS.equals(packageName) ? LOG_FILE_BUSINESS : LOG_FILE_WPP;
         File logFile = new File(logFolder, fileName);
         try (FileWriter writer = new FileWriter(logFile, false)) {
-            writer.write(content == null ? "" : content);
+            writer.write(content);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void appendLogs(String packageName, String content) {
+        if (content == null || content.isEmpty()) return;
+        File cacheDir = App.getInstance() != null ? App.getInstance().getCacheDir() : null;
+        if (cacheDir == null) return;
+
+        File logFolder = new File(cacheDir, "logs");
+        if (!logFolder.exists()) {
+            logFolder.mkdirs();
+        }
+
+        String fileName = FeatureLoader.PACKAGE_BUSINESS.equals(packageName) ? LOG_FILE_BUSINESS : LOG_FILE_WPP;
+        File logFile = new File(logFolder, fileName);
+        try (FileWriter writer = new FileWriter(logFile, true)) {
+            writer.write(content.endsWith("\n") ? content : content + "\n");
         } catch (IOException ignored) {
         }
     }
