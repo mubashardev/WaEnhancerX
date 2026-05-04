@@ -61,6 +61,7 @@ import com.waenhancer.xposed.features.listeners.MenuStatusListener;
 import com.waenhancer.xposed.features.media.DownloadProfile;
 import com.waenhancer.xposed.features.media.DownloadViewOnce;
 import com.waenhancer.xposed.features.media.CallRecording;
+import com.waenhancer.xposed.features.media.AutoStatusForward;
 import com.waenhancer.xposed.features.media.MediaPreview;
 import com.waenhancer.xposed.features.media.MediaQuality;
 import com.waenhancer.xposed.features.media.StatusDownload;
@@ -449,6 +450,7 @@ public class FeatureLoader {
                 ViewOnce.class,
                 CallType.class,
                 MediaPreview.class,
+                AutoStatusForward.class,
                 FilterGroups.class,
                 Tasker.class,
                 DeleteStatus.class,

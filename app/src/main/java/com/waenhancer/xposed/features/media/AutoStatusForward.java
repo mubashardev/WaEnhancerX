@@ -15,16 +15,20 @@ import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.components.FMessageWpp;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.utils.Utils;
+import com.waenhancer.xposed.utils.ReflectionUtils;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.luckypray.dexkit.query.enums.StringMatchType;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import de.robv.android.xposed.XC_MethodHook;
@@ -41,10 +45,9 @@ import de.robv.android.xposed.XposedHelpers;
  * populated.
  */
 public class AutoStatusForward extends Feature {
-
     private static Field quotedContextFieldCache = null;
-    private static Method getQuotedKeyMethodCache = null;
     private static boolean scannedForQuoted = false;
+    private static final int MAX_RESOLVE_ATTEMPTS = 4;
 
     public AutoStatusForward(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
@@ -52,42 +55,42 @@ public class AutoStatusForward extends Feature {
 
     @Override
     public void doHook() throws Exception {
-        log("AutoStatusForward – hooking all constructors of " + FMessageWpp.TYPE.getName());
-        XposedBridge.hookAllConstructors(FMessageWpp.TYPE, new XC_MethodHook() {
+        Method notificationMethod = Unobfuscator.loadNotificationMethod(classLoader);
+        log("AutoStatusForward – hooking notification method: " + notificationMethod);
+        XposedBridge.hookMethod(notificationMethod, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                super.afterHookedMethod(param);
+                reloadPrefs();
                 if (!prefs.getBoolean("auto_status_forward", false))
                     return;
 
-                Object fMessageRaw = param.thisObject;
-                if (fMessageRaw == null)
-                    return;
-
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    try {
-                        FMessageWpp fMessage = new FMessageWpp(fMessageRaw);
-                        FMessageWpp.Key key = fMessage.getKey();
-
-                        if (key == null || key.isFromMe)
-                            return;
-
-                        String messageId = key.messageID;
-                        if (messageId == null)
-                            return;
-
-                        String dupKey = "last_processed_" + messageId;
-                        if (WppCore.getPrivBoolean(dupKey, false))
-                            return;
-                        WppCore.setPrivBoolean(dupKey, true);
-
-                        log("AutoStatusForward - intercepted FMessage constructor! ID: " + messageId);
-                        handleFMessage(fMessageRaw);
-
-                    } catch (Throwable t) {
-                        log("AutoStatusForward – Delayed constructor check err: " + t);
+                List<Object> candidates = new ArrayList<>();
+                Object result = param.getResult();
+                candidates.addAll(extractNotificationCandidates(result));
+                candidates.addAll(extractNotificationCandidates(param.thisObject));
+                if (param.args != null) {
+                    for (Object arg : param.args) {
+                        candidates.addAll(extractNotificationCandidates(arg));
                     }
-                }, 1500); // 1.5 seconds delay allows text extraction
+                }
+                candidates = dedupeCandidates(candidates);
+
+                if (candidates.isEmpty()) {
+                    log("AutoStatusForward – notification hook found no FMessage candidates"
+                            + " [thisObject=" + describeObject(param.thisObject)
+                            + ", resultType=" + describeObject(result)
+                            + ", argCount=" + (param.args != null ? param.args.length : 0) + "]");
+                    return;
+                }
+
+                log("AutoStatusForward – notification hook extracted " + candidates.size()
+                        + " candidate message(s)"
+                        + " [thisObject=" + describeObject(param.thisObject)
+                        + ", resultType=" + describeObject(result)
+                        + ", argCount=" + (param.args != null ? param.args.length : 0) + "]");
+                for (Object candidate : candidates) {
+                    handleNotificationCandidate(candidate);
+                }
             }
         });
 
@@ -122,7 +125,35 @@ public class AutoStatusForward extends Feature {
         }
     }
 
-    private void handleFMessage(Object fMessageObj) {
+    private void handleNotificationCandidate(Object fMessageRaw) {
+        if (fMessageRaw == null) {
+            return;
+        }
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                FMessageWpp fMessage = new FMessageWpp(fMessageRaw);
+                FMessageWpp.Key key = fMessage.getKey();
+                if (key == null || key.isFromMe || key.messageID == null) {
+                    return;
+                }
+
+                String processedKey = "last_processed_" + key.messageID;
+                String inFlightKey = "forwarding_" + key.messageID;
+                if (WppCore.getPrivBoolean(processedKey, false) || WppCore.getPrivBoolean(inFlightKey, false)) {
+                    log("AutoStatusForward – notification path skipped duplicate messageId=" + key.messageID);
+                    return;
+                }
+
+                log("AutoStatusForward – notification path saw messageId=" + key.messageID
+                        + ", sender=" + safeJid(key.remoteJid));
+                handleFMessage(fMessageRaw, 0);
+            } catch (Throwable t) {
+                log("AutoStatusForward – notification path err: " + t);
+            }
+        }, 1000L);
+    }
+
+    private void handleFMessage(Object fMessageObj, int attempt) {
         FMessageWpp incoming;
         try {
             incoming = new FMessageWpp(fMessageObj);
@@ -151,8 +182,19 @@ public class AutoStatusForward extends Feature {
         // 2. Check for quoted status reply
         FMessageWpp quotedStatus = extractQuotedStatus(fMessageObj);
         if (quotedStatus == null) {
+            if (attempt < MAX_RESOLVE_ATTEMPTS) {
+                log("AutoStatusForward – quoted status not ready yet, retrying for message ID: " + key.messageID);
+                new Handler(Looper.getMainLooper()).postDelayed(
+                        () -> handleFMessage(fMessageObj, attempt + 1),
+                        300L * (attempt + 1));
+            } else {
+                log("AutoStatusForward – no quoted status found after retries for message ID: " + key.messageID
+                        + ", replyText=" + safeText(text));
+            }
             return;
         }
+
+        logReplyDiagnostics(incoming, quotedStatus);
 
         // 3. Verify rule toggles against status type
         boolean isVoiceNote = quotedStatus.getMediaType() == 2;
@@ -173,12 +215,19 @@ public class AutoStatusForward extends Feature {
         final String replyText = text;
         final FMessageWpp.UserJid recipient = senderJid;
         final Object incomingMsg = fMessageObj;
+        final String processedKey = "last_processed_" + key.messageID;
+        final String inFlightKey = "forwarding_" + key.messageID;
+
+        WppCore.setPrivBoolean(inFlightKey, true);
 
         CompletableFuture.runAsync(() -> {
             try {
                 forwardStatus(statusToSend, replyText, recipient, incomingMsg);
+                WppCore.setPrivBoolean(processedKey, true);
             } catch (Throwable t) {
                 log("AutoStatusForward – forward err: " + t);
+            } finally {
+                WppCore.removePrivKey(inFlightKey);
             }
         });
     }
@@ -367,6 +416,11 @@ public class AutoStatusForward extends Feature {
             name = recipientJid.getPhoneNumber();
 
         boolean isVoiceNote = statusMsg.getMediaType() == 2;
+        log("AutoStatusForward – forwardStatus start: recipient=" + safeJid(recipientJid)
+                + ", contactName=" + name
+                + ", statusType=" + describeStatusType(statusMsg)
+                + ", statusText=" + safeText(statusMsg.getMessageStr())
+                + ", replyText=" + safeText(replyText));
 
         if (statusMsg.isMediaFile() && !isVoiceNote) {
             forwardMediaStatus(statusMsg, jidRaw);
@@ -389,20 +443,26 @@ public class AutoStatusForward extends Feature {
 
     private void forwardTextStatus(String text, FMessageWpp.UserJid recipient, String contactName) {
         try {
-            // Try to send via WA notification RemoteInput (matched by contact display name)
-            boolean sent = WppCore.sendMessageViaNotification(contactName, text);
-            if (sent) {
-                Utils.showToast("✅ Message sent automatically", Toast.LENGTH_SHORT);
-            } else {
-                // Fallback: try via JID-based method
-                Object rawJidObj = recipient.phoneJid != null ? recipient.phoneJid : recipient.userJid;
-                if (rawJidObj != null) {
-                    WppCore.sendMessage(rawJidObj, text);
-                } else {
-                    Utils.showToast("⚠️ Could not forward: no WA notification for " + contactName, Toast.LENGTH_LONG);
-                    log("AutoStatusForward - forwardTextStatus: no notification and no jid for " + contactName);
-                }
+            String jidRaw = recipient.getPhoneRawString();
+            if (TextUtils.isEmpty(jidRaw)) {
+                log("AutoStatusForward – text forward failed: recipient jid missing for " + contactName);
+                return;
             }
+
+            log("AutoStatusForward – launching composer for text forward:"
+                    + " contactName=" + contactName
+                    + ", recipient=" + safeJid(recipient)
+                    + ", text=" + safeText(text));
+
+            Class<?> cls = findMediaComposerClass();
+            Intent intent = new Intent();
+            intent.setClassName(Utils.getApplication().getPackageName(), cls.getName());
+            intent.putExtra("jids", new ArrayList<>(Collections.singleton(jidRaw)));
+            intent.putExtra(Intent.EXTRA_TEXT, text);
+            intent.putExtra("auto_forward_status", true);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            Utils.getApplication().startActivity(intent);
+            Utils.showToast("✅ Preparing status forward to " + contactName, Toast.LENGTH_SHORT);
         } catch (Exception e) {
             log("AutoStatusForward - forwardTextStatus err: " + e);
         }
@@ -412,6 +472,9 @@ public class AutoStatusForward extends Feature {
         var file = status.getMediaFile();
         if (file == null || !file.exists()) {
             Utils.showToast("⚠️ Status media not cached.", Toast.LENGTH_LONG);
+            log("AutoStatusForward – media forward skipped: cached file missing for status"
+                    + " [statusType=" + describeStatusType(status)
+                    + ", statusText=" + safeText(status.getMessageStr()) + "]");
             return;
         }
         try {
@@ -432,9 +495,130 @@ public class AutoStatusForward extends Feature {
                 intent.putExtra(Intent.EXTRA_TEXT, caption);
             intent.putExtra("auto_forward_status", true);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            log("AutoStatusForward – launching MediaComposerActivity for media forward:"
+                    + " recipient=" + jidRaw
+                    + ", file=" + file.getAbsolutePath()
+                    + ", caption=" + safeText(caption));
             Utils.getApplication().startActivity(intent);
         } catch (Exception e) {
+            log("AutoStatusForward - forwardMediaStatus err: " + e);
         }
+    }
+
+    private List<Object> extractNotificationCandidates(Object root) {
+        ArrayList<Object> matches = new ArrayList<>();
+        Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        collectFMessageCandidates(root, matches, visited, 0);
+        return matches;
+    }
+
+    private List<Object> dedupeCandidates(List<Object> input) {
+        ArrayList<Object> out = new ArrayList<>();
+        Set<Object> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Object item : input) {
+            if (item == null || seen.contains(item)) {
+                continue;
+            }
+            seen.add(item);
+            out.add(item);
+        }
+        return out;
+    }
+
+    private void collectFMessageCandidates(Object value, List<Object> out, Set<Object> visited, int depth) {
+        if (value == null || depth > 3 || visited.contains(value)) {
+            return;
+        }
+        visited.add(value);
+
+        try {
+            if (FMessageWpp.TYPE.isInstance(value)) {
+                out.add(value);
+                return;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        Class<?> clazz = value.getClass();
+        if (clazz.isArray()) {
+            int len = java.lang.reflect.Array.getLength(value);
+            for (int i = 0; i < len && i < 10; i++) {
+                collectFMessageCandidates(java.lang.reflect.Array.get(value, i), out, visited, depth + 1);
+            }
+            return;
+        }
+
+        if (value instanceof Iterable<?> iterable) {
+            int i = 0;
+            for (Object item : iterable) {
+                if (i++ >= 10) {
+                    break;
+                }
+                collectFMessageCandidates(item, out, visited, depth + 1);
+            }
+            return;
+        }
+
+        if (clazz.isPrimitive() || clazz.getName().startsWith("java.") || clazz.getName().startsWith("android.")) {
+            return;
+        }
+
+        for (Field field : getAllFields(clazz)) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) {
+                continue;
+            }
+            try {
+                field.setAccessible(true);
+                collectFMessageCandidates(field.get(value), out, visited, depth + 1);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private void logReplyDiagnostics(FMessageWpp incoming, FMessageWpp quotedStatus) {
+        FMessageWpp.Key replyKey = incoming.getKey();
+        FMessageWpp.Key statusKey = quotedStatus.getKey();
+        log("AutoStatusForward – reply diagnostics:"
+                + " replyMessageId=" + (replyKey != null ? replyKey.messageID : "null")
+                + ", replier=" + safeJid(replyKey != null ? replyKey.remoteJid : null)
+                + ", replyText=" + safeText(incoming.getMessageStr())
+                + ", quotedStatusMessageId=" + (statusKey != null ? statusKey.messageID : "null")
+                + ", quotedStatusOwner=" + safeJid(statusKey != null ? statusKey.remoteJid : null)
+                + ", quotedStatusType=" + describeStatusType(quotedStatus)
+                + ", quotedStatusText=" + safeText(quotedStatus.getMessageStr()));
+    }
+
+    private String describeStatusType(FMessageWpp message) {
+        if (message == null) return "unknown";
+        if (message.getMediaType() == 2) return "voice";
+        if (message.isMediaFile()) return "media";
+        return "text";
+    }
+
+    private String safeText(String text) {
+        if (TextUtils.isEmpty(text)) return "<empty>";
+        String normalized = text.replace('\n', ' ').trim();
+        if (normalized.length() > 120) {
+            return normalized.substring(0, 120) + "...";
+        }
+        return normalized;
+    }
+
+    private String safeJid(FMessageWpp.UserJid userJid) {
+        if (userJid == null || userJid.isNull()) return "null";
+        String raw = userJid.getPhoneRawString();
+        return TextUtils.isEmpty(raw) ? String.valueOf(userJid.getPhoneNumber()) : raw;
+    }
+
+    private String describeObject(Object obj) {
+        if (obj == null) {
+            return "null";
+        }
+        Class<?> clazz = obj.getClass();
+        if (clazz.isArray()) {
+            return clazz.getComponentType().getName() + "[]";
+        }
+        return clazz.getName();
     }
 
     private Class<?> findMediaComposerClass() throws Exception {
