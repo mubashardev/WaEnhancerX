@@ -47,6 +47,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -61,7 +62,7 @@ public class SeenTick extends Feature {
     private static String currentScreen = "none";
     private final ConcurrentHashMap<String, WeakReference<ImageView>> messageMap = new ConcurrentHashMap<>();
 
-    public SeenTick(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public SeenTick(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

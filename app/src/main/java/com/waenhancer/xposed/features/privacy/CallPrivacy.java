@@ -23,6 +23,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -113,7 +114,7 @@ public class CallPrivacy extends Feature {
     }
 
 
-    public CallPrivacy(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public CallPrivacy(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

@@ -62,7 +62,16 @@ public class App extends Application {
         var mode = Integer.parseInt(sharedPreferences.getString("thememode", "0"));
         setThemeMode(mode);
         changeLanguage(this);
-        // criar um banco de dados
+        
+        // Notify ContentProvider when preferences change locally
+        sharedPreferences.registerOnSharedPreferenceChangeListener((prefs, key) -> {
+            try {
+                getContentResolver().notifyChange(
+                    Uri.parse("content://" + BuildConfig.APPLICATION_ID + ".hookprovider/preferences"), 
+                    null
+                );
+            } catch (Exception ignored) {}
+        });
     }
 
     public static void setThemeMode(int mode) {
@@ -116,8 +125,8 @@ public class App extends Application {
     }
 
     public static boolean isOriginalPackage() {
-        // noinspection ConstantValue
-        return BuildConfig.APPLICATION_ID.equals("com.waenhancer");
+        // Allow the official package and any debug build
+        return BuildConfig.APPLICATION_ID.equals("com.waenhancer") || BuildConfig.DEBUG;
     }
 
 }

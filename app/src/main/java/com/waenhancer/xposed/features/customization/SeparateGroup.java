@@ -27,6 +27,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -39,7 +40,7 @@ public class SeparateGroup extends Feature {
     public static ArrayList<Integer> tabs = new ArrayList<>();
     public static HashMap<Integer, Object> tabInstances = new HashMap<>();
 
-    public SeparateGroup(ClassLoader loader, XSharedPreferences preferences) {
+    public SeparateGroup(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

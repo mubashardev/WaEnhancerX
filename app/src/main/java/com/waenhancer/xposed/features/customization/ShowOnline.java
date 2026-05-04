@@ -28,6 +28,7 @@ import java.lang.reflect.Method;
 import java.util.Locale;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -42,7 +43,7 @@ public class ShowOnline extends Feature {
     private java.lang.reflect.Field fieldTokenDBInstance;
     private Class<?> tokenClass;
 
-    public ShowOnline(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public ShowOnline(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

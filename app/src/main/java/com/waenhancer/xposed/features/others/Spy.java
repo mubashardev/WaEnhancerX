@@ -4,11 +4,12 @@ import androidx.annotation.NonNull;
 
 import com.waenhancer.xposed.core.Feature;
 
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 
 public class Spy extends Feature {
 
-    public Spy(ClassLoader loader, XSharedPreferences preferences) {
+    public Spy(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

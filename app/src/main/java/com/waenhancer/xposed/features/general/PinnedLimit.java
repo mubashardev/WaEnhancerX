@@ -22,6 +22,7 @@ import java.util.Spliterator;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -29,7 +30,7 @@ import lombok.Setter;
 
 public class PinnedLimit extends Feature {
 
-    public PinnedLimit(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public PinnedLimit(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

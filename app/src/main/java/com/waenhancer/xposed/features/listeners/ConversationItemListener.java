@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.Objects;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -26,7 +27,7 @@ public class ConversationItemListener extends Feature {
     private static ListAdapter mAdapter;
     private static XC_MethodHook.Unhook hooked;
 
-    public ConversationItemListener(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public ConversationItemListener(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

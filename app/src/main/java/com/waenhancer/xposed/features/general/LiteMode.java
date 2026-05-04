@@ -23,6 +23,7 @@ import com.waenhancer.xposed.core.components.AlertDialogWpp;
 import com.waenhancer.xposed.utils.ResId;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedHelpers;
 
@@ -31,7 +32,7 @@ public class LiteMode extends Feature {
     public static final int REQUEST_FOLDER = 852583;
 
 
-    public LiteMode(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public LiteMode(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

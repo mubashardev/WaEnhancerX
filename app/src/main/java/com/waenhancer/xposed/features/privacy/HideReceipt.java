@@ -21,6 +21,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
@@ -33,7 +34,7 @@ public class HideReceipt extends Feature {
     private boolean ghostMode;
     private boolean hideRead;
 
-    public HideReceipt(ClassLoader loader, XSharedPreferences preferences) {
+    public HideReceipt(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

@@ -15,6 +15,7 @@ import com.waenhancer.xposed.utils.ReflectionUtils;
 import com.waenhancer.xposed.utils.Utils;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -22,7 +23,7 @@ import de.robv.android.xposed.XposedHelpers;
 public class TextStatusComposer extends Feature {
     private static final ColorData colorData = new ColorData();
 
-    public TextStatusComposer(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public TextStatusComposer(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

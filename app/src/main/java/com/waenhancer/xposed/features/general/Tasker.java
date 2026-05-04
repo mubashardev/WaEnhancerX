@@ -19,6 +19,7 @@ import com.waenhancer.xposed.utils.Utils;
 import java.util.Objects;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
@@ -27,7 +28,7 @@ public class Tasker extends Feature {
     private static boolean taskerEnabled;
 
 
-    public Tasker(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public Tasker(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

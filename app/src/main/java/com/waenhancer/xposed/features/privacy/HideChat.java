@@ -11,6 +11,7 @@ import com.waenhancer.xposed.utils.ReflectionUtils;
 import java.util.Objects;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
@@ -18,7 +19,7 @@ public class HideChat extends Feature {
 
 //    public static View.OnClickListener mClickListenerLocked;
 
-    public HideChat(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public HideChat(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

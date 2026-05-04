@@ -95,6 +95,12 @@ public class AboutActivity extends BaseActivity {
             return;
         }
 
+        // Show loading state
+        if (binding.expressiveLoadingProgress != null) {
+            binding.expressiveLoadingProgress.setVisibility(View.VISIBLE);
+        }
+        binding.rvContributors.setVisibility(View.GONE);
+
         Request request = new Request.Builder()
                 .url(API_URL)
                 .header("User-Agent", "WaEnhancer X-App")
@@ -109,6 +115,9 @@ public class AboutActivity extends BaseActivity {
                     if (cachedJson != null) {
                         parseContributorsAndRefresh(cachedJson);
                     } else {
+                        if (binding.expressiveLoadingProgress != null) {
+                            binding.expressiveLoadingProgress.setVisibility(View.GONE);
+                        }
                         Toast.makeText(AboutActivity.this, "Failed to load contributors", Toast.LENGTH_SHORT).show();
                     }
                 });
@@ -121,6 +130,9 @@ public class AboutActivity extends BaseActivity {
                         if (cachedJson != null) {
                             parseContributorsAndRefresh(cachedJson);
                         } else {
+                            if (binding.expressiveLoadingProgress != null) {
+                                binding.expressiveLoadingProgress.setVisibility(View.GONE);
+                            }
                             Toast.makeText(AboutActivity.this, "Error fetching contributors", Toast.LENGTH_SHORT)
                                     .show();
                         }
@@ -145,6 +157,11 @@ public class AboutActivity extends BaseActivity {
 
     private void parseContributorsAndRefresh(String json) {
         try {
+            if (binding.expressiveLoadingProgress != null) {
+                binding.expressiveLoadingProgress.setVisibility(View.GONE);
+            }
+            binding.rvContributors.setVisibility(View.VISIBLE);
+
             JSONArray jsonArray = new JSONArray(json);
             List<Contributor> fetchList = new ArrayList<>();
 

@@ -8,6 +8,13 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.materialthemebuilder)
     alias(libs.plugins.kotlinAndroid)
+    alias(libs.plugins.compose.compiler)
+}
+
+val hasGoogleServices = file("google-services.json").exists()
+if (hasGoogleServices) {
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
 }
 
 kotlin {
@@ -44,6 +51,15 @@ android {
         targetSdk = 34
         versionCode = project.findProperty("VERSION_CODE")?.toString()?.toInt() ?: 1
         versionName = project.findProperty("VERSION_NAME")?.toString() ?: "1.0.0"
+
+        val env = Properties()
+        val envFile = rootProject.file(".env")
+        if (envFile.exists()) {
+            runCatching { env.load(FileInputStream(envFile)) }
+        }
+        val githubToken = (project.findProperty("GH_PUBLIC_TOKEN")?.toString() ?: env.getProperty("GH_PUBLIC_TOKEN") ?: "").trim()
+        buildConfigField("String", "GH_PUBLIC_TOKEN", "\"$githubToken\"")
+
         buildConfigField("String", "NOTICES_URL", "\"https://waenhancer.com/notices.json\"")
         multiDexEnabled = true
 
@@ -128,6 +144,7 @@ android {
         viewBinding = true
         buildConfig = true
         aidl = true
+        compose = true
     }
 
 
@@ -191,10 +208,24 @@ dependencies {
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     implementation(libs.markwon.core)
+
+    val composeBom = platform(libs.androidx.compose.bom)
+    implementation(composeBom)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.savedstate.ktx)
+    implementation(libs.androidx.compose.ui.tooling.preview)
+    implementation(libs.androidx.activity.compose)
+
+    if (hasGoogleServices) {
+        implementation(platform(libs.firebase.bom))
+        implementation(libs.firebase.analytics)
+        implementation(libs.firebase.crashlytics)
+    }
 }
 
 configurations.all {
-    exclude("org.jetbrains", "annotations")
     exclude("androidx.appcompat", "appcompat")
     exclude("org.jetbrains.kotlin", "kotlin-stdlib-jdk7")
     exclude("org.jetbrains.kotlin", "kotlin-stdlib-jdk8")

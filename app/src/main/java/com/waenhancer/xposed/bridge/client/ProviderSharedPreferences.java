@@ -5,9 +5,11 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.waenhancer.BuildConfig;
+import de.robv.android.xposed.XposedBridge;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -24,12 +26,63 @@ public class ProviderSharedPreferences implements SharedPreferences {
 
     private final Context context;
     private final SharedPreferences localPrefs;
-    private final String authority = BuildConfig.APPLICATION_ID + ".provider";
+    private static final String AUTHORITY_SUFFIX = ".hookprovider";
+    private static final String AUTHORITY_LEGACY = "com.waenhancer.hookprovider";
 
-    public ProviderSharedPreferences(Context context, SharedPreferences localPrefs) {
+    private final SharedPreferences fallbackPrefs;
+
+    public ProviderSharedPreferences(Context context, SharedPreferences localPrefs, SharedPreferences fallbackPrefs) {
+        XposedBridge.log("[WAE] ProviderSharedPreferences: Initializing...");
         this.context = context;
         this.localPrefs = localPrefs;
-        hydrateFromProvider();
+        this.fallbackPrefs = fallbackPrefs;
+        try {
+            hydrateFromProvider();
+        } catch (Throwable t) {
+            XposedBridge.log("[WAE] ProviderSharedPreferences: Hydration critical failure: " + t.getMessage());
+        }
+        try {
+            registerObserver();
+        } catch (Throwable t) {
+            XposedBridge.log("[WAE] ProviderSharedPreferences: Observer registration critical failure: " + t.getMessage());
+        }
+        XposedBridge.log("[WAE] ProviderSharedPreferences: Initialization complete. Local cache size: " + localPrefs.getAll().size());
+    }
+
+    private void registerObserver() {
+        String authority = BuildConfig.APPLICATION_ID + AUTHORITY_SUFFIX;
+        try {
+            XposedBridge.log("[WAE] ProviderSharedPreferences: Registering observer for authority: " + authority);
+            context.getContentResolver().registerContentObserver(
+                    Uri.parse("content://" + authority + "/preferences"),
+                    true,
+                    new android.database.ContentObserver(new android.os.Handler(android.os.Looper.getMainLooper())) {
+                        @Override
+                        public void onChange(boolean selfChange) {
+                            XposedBridge.log("[WAE] ProviderSharedPreferences: Preferences changed, re-hydrating...");
+                            hydrateFromProvider();
+                        }
+                    }
+            );
+            XposedBridge.log("[WAE] ProviderSharedPreferences: Observer registered successfully");
+        } catch (Throwable e) {
+            XposedBridge.log("[WAE] ProviderSharedPreferences: Failed to register observer: " + e.getMessage());
+            // Try legacy
+            if (!authority.equals(AUTHORITY_LEGACY)) {
+                try {
+                    context.getContentResolver().registerContentObserver(
+                        Uri.parse("content://" + AUTHORITY_LEGACY + "/preferences"),
+                        true,
+                        new android.database.ContentObserver(new android.os.Handler(android.os.Looper.getMainLooper())) {
+                            @Override
+                            public void onChange(boolean selfChange) {
+                                hydrateFromProvider();
+                            }
+                        }
+                    );
+                } catch (Throwable ignored) {}
+            }
+        }
     }
 
     @Override
@@ -38,6 +91,8 @@ public class ProviderSharedPreferences implements SharedPreferences {
     @Nullable
     @Override
     public String getString(String key, @Nullable String defValue) {
+        if (localPrefs.contains(key)) return localPrefs.getString(key, defValue);
+        if (fallbackPrefs != null && fallbackPrefs.contains(key)) return fallbackPrefs.getString(key, defValue);
         try {
             return localPrefs.getString(key, defValue);
         } catch (Exception e) {
@@ -55,16 +110,30 @@ public class ProviderSharedPreferences implements SharedPreferences {
 
     @Nullable
     @Override
-    public Set<String> getStringSet(String key, @Nullable Set<String> defValues) { return localPrefs.getStringSet(key, defValues); }
+    public Set<String> getStringSet(String key, @Nullable Set<String> defValues) {
+        if (localPrefs.contains(key)) return localPrefs.getStringSet(key, defValues);
+        if (fallbackPrefs != null && fallbackPrefs.contains(key)) return fallbackPrefs.getStringSet(key, defValues);
+        return localPrefs.getStringSet(key, defValues);
+    }
 
     @Override
-    public int getInt(String key, int defValue) { return localPrefs.getInt(key, defValue); }
+    public int getInt(String key, int defValue) {
+        if (localPrefs.contains(key)) return localPrefs.getInt(key, defValue);
+        if (fallbackPrefs != null && fallbackPrefs.contains(key)) return fallbackPrefs.getInt(key, defValue);
+        return localPrefs.getInt(key, defValue);
+    }
 
     @Override
-    public long getLong(String key, long defValue) { return localPrefs.getLong(key, defValue); }
+    public long getLong(String key, long defValue) {
+        if (localPrefs.contains(key)) return localPrefs.getLong(key, defValue);
+        if (fallbackPrefs != null && fallbackPrefs.contains(key)) return fallbackPrefs.getLong(key, defValue);
+        return localPrefs.getLong(key, defValue);
+    }
 
     @Override
     public float getFloat(String key, float defValue) {
+        if (localPrefs.contains(key)) return localPrefs.getFloat(key, defValue);
+        if (fallbackPrefs != null && fallbackPrefs.contains(key)) return fallbackPrefs.getFloat(key, defValue);
         try {
             return localPrefs.getFloat(key, defValue);
         } catch (Exception e) {
@@ -80,10 +149,16 @@ public class ProviderSharedPreferences implements SharedPreferences {
     }
 
     @Override
-    public boolean getBoolean(String key, boolean defValue) { return localPrefs.getBoolean(key, defValue); }
+    public boolean getBoolean(String key, boolean defValue) {
+        if (localPrefs.contains(key)) return localPrefs.getBoolean(key, defValue);
+        if (fallbackPrefs != null && fallbackPrefs.contains(key)) return fallbackPrefs.getBoolean(key, defValue);
+        return localPrefs.getBoolean(key, defValue);
+    }
 
     @Override
-    public boolean contains(String key) { return localPrefs.contains(key); }
+    public boolean contains(String key) {
+        return localPrefs.contains(key) || (fallbackPrefs != null && fallbackPrefs.contains(key));
+    }
 
     @Override
     public Editor edit() {
@@ -103,16 +178,27 @@ public class ProviderSharedPreferences implements SharedPreferences {
     @SuppressWarnings("unchecked")
     private void hydrateFromProvider() {
         try {
-            Bundle result = context.getContentResolver().call(
-                    Uri.parse("content://" + authority),
-                    "get_all_preferences",
-                    null,
-                    null);
+            XposedBridge.log("[WAE] ProviderSharedPreferences: Starting hydration...");
+            Bundle result = callProvider("get_all_preferences", null);
             if (result == null) {
+                XposedBridge.log("[WAE] ProviderSharedPreferences: Hydration failed (null result). Using fallback.");
+                XposedBridge.log("[WAE] ProviderSharedPreferences: Fallback cache size: " + fallbackPrefs.getAll().size());
+                var editor = localPrefs.edit().clear();
+                for (Map.Entry<String, ?> entry : fallbackPrefs.getAll().entrySet()) {
+                    Object value = entry.getValue();
+                    if (value instanceof String) editor.putString(entry.getKey(), (String) value);
+                    else if (value instanceof Boolean) editor.putBoolean(entry.getKey(), (Boolean) value);
+                    else if (value instanceof Integer) editor.putInt(entry.getKey(), (Integer) value);
+                    else if (value instanceof Long) editor.putLong(entry.getKey(), (Long) value);
+                    else if (value instanceof Float) editor.putFloat(entry.getKey(), (Float) value);
+                }
+                editor.commit();
                 return;
             }
+            XposedBridge.log("[WAE] ProviderSharedPreferences: Received preferences bundle from provider");
             Serializable serializable = result.getSerializable("prefs");
             if (!(serializable instanceof Map)) {
+                android.util.Log.e("WAE", "Hydration failed: result 'prefs' is not a Map (type: " + (serializable != null ? serializable.getClass().getName() : "null") + ")");
                 return;
             }
             Map<?, ?> rawMap = (Map<?, ?>) serializable;
@@ -160,9 +246,10 @@ public class ProviderSharedPreferences implements SharedPreferences {
                     }
                 }
             }
-            editor.apply();
+            editor.commit();
+            android.util.Log.i("WAE", "Hydration completed successfully");
         } catch (Exception e) {
-            android.util.Log.e("WAE", "Hydration failed: " + e.getMessage());
+            android.util.Log.e("WAE", "Hydration failed with exception: " + e.getMessage(), e);
         }
     }
 
@@ -174,45 +261,36 @@ public class ProviderSharedPreferences implements SharedPreferences {
         }
 
         private void syncToProvider(String key, Object value) {
-            try {
-                Bundle extras = new Bundle();
-                extras.putString("key", key);
-                if (value instanceof String) {
-                    extras.putString("type", "string");
-                    extras.putString("value", (String) value);
-                } else if (value instanceof Boolean) {
-                    extras.putString("type", "boolean");
-                    extras.putBoolean("value", (Boolean) value);
-                } else if (value instanceof Integer) {
-                    extras.putString("type", "int");
-                    extras.putInt("value", (Integer) value);
-                } else if (value instanceof Long) {
-                    extras.putString("type", "long");
-                    extras.putLong("value", (Long) value);
-                } else if (value instanceof Float) {
-                    extras.putString("type", "float");
-                    extras.putFloat("value", (Float) value);
-                } else if (value instanceof Set<?>) {
-                    extras.putString("type", "string_set");
-                    var list = new ArrayList<String>();
-                    for (Object item : (Set<?>) value) {
-                        if (item instanceof String) {
-                            list.add((String) item);
-                        }
+            Bundle extras = new Bundle();
+            extras.putString("key", key);
+            if (value instanceof String) {
+                extras.putString("type", "string");
+                extras.putString("value", (String) value);
+            } else if (value instanceof Boolean) {
+                extras.putString("type", "boolean");
+                extras.putBoolean("value", (Boolean) value);
+            } else if (value instanceof Integer) {
+                extras.putString("type", "int");
+                extras.putInt("value", (Integer) value);
+            } else if (value instanceof Long) {
+                extras.putString("type", "long");
+                extras.putLong("value", (Long) value);
+            } else if (value instanceof Float) {
+                extras.putString("type", "float");
+                extras.putFloat("value", (Float) value);
+            } else if (value instanceof Set<?>) {
+                extras.putString("type", "string_set");
+                var list = new ArrayList<String>();
+                for (Object item : (Set<?>) value) {
+                    if (item instanceof String) {
+                        list.add((String) item);
                     }
-                    extras.putStringArrayList("value", list);
-                } else {
-                    return;
                 }
-
-                context.getContentResolver().call(
-                        Uri.parse("content://" + authority),
-                        "put_preference",
-                        null,
-                        extras);
-            } catch (Exception e) {
-                // Log error
+                extras.putStringArrayList("value", list);
+            } else {
+                return;
             }
+            callProvider("put_preference", extras);
         }
 
         @Override
@@ -263,11 +341,7 @@ public class ProviderSharedPreferences implements SharedPreferences {
             try {
                 Bundle extras = new Bundle();
                 extras.putString("key", key);
-                context.getContentResolver().call(
-                        Uri.parse("content://" + authority),
-                        "remove_preference",
-                        null,
-                        extras);
+                callProvider("remove_preference", extras);
             } catch (Exception ignored) {
             }
             return this;
@@ -277,11 +351,7 @@ public class ProviderSharedPreferences implements SharedPreferences {
         public Editor clear() {
             localEditor.clear();
             try {
-                context.getContentResolver().call(
-                        Uri.parse("content://" + authority),
-                        "clear_preferences",
-                        null,
-                        null);
+                callProvider("clear_preferences", null);
             } catch (Exception ignored) {
             }
             return this;
@@ -292,5 +362,29 @@ public class ProviderSharedPreferences implements SharedPreferences {
 
         @Override
         public void apply() { localEditor.apply(); }
+    }
+
+    @Nullable
+    private Bundle callProvider(@NonNull String method, @Nullable Bundle extras) {
+        String[] authorities = new String[] { BuildConfig.APPLICATION_ID + AUTHORITY_SUFFIX, AUTHORITY_LEGACY, "com.waenhancer.provider" };
+        for (String authority : authorities) {
+            try {
+                XposedBridge.log("[WAE] ProviderSharedPreferences: Calling provider: " + method + " (Authority: " + authority + ")");
+                Bundle result = context.getContentResolver().call(
+                        Uri.parse("content://" + authority),
+                        method,
+                        null,
+                        extras);
+                if (result != null) {
+                    XposedBridge.log("[WAE] ProviderSharedPreferences: Call successful for: " + authority);
+                    return result;
+                } else {
+                    XposedBridge.log("[WAE] ProviderSharedPreferences: Call returned null for: " + authority);
+                }
+            } catch (Throwable e) {
+                XposedBridge.log("[WAE] ProviderSharedPreferences: Call error (" + authority + "): " + e.getMessage());
+            }
+        }
+        return null;
     }
 }

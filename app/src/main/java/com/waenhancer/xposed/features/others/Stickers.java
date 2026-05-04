@@ -16,12 +16,13 @@ import com.waenhancer.xposed.utils.ResId;
 import com.waenhancer.xposed.utils.Utils;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class Stickers extends Feature {
-    public Stickers(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public Stickers(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -41,7 +42,7 @@ public class AntiRevoke extends Feature {
             .withInitial(() -> DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT,
                     Utils.getApplication().getResources().getConfiguration().getLocales().get(0)));
 
-    public AntiRevoke(ClassLoader loader, XSharedPreferences preferences) {
+    public AntiRevoke(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

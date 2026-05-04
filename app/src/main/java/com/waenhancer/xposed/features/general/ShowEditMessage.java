@@ -33,13 +33,14 @@ import java.util.ArrayList;
 import java.util.Objects;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class ShowEditMessage extends Feature {
 
-    public ShowEditMessage(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public ShowEditMessage(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

@@ -1,6 +1,7 @@
 package com.waenhancer;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.XModuleResources;
 import android.view.Window;
@@ -23,6 +24,7 @@ import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.IXposedHookZygoteInit;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -32,6 +34,13 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage;
 public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackageResources, IXposedHookZygoteInit {
 
     private static XSharedPreferences pref;
+    private static volatile boolean logHookInstalled = false;
+    private static final ThreadLocal<Boolean> forwardingLog = new ThreadLocal<Boolean>() {
+        @Override
+        protected Boolean initialValue() {
+            return Boolean.FALSE;
+        }
+    };
     private String MODULE_PATH;
     public static XC_InitPackageResources.InitPackageResourcesParam ResParam;
 
@@ -50,14 +59,18 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
     @SuppressLint("WorldReadableFiles")
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
+        XposedBridge.log("[WAE] handleLoadPackage: " + lpparam.packageName + " (process: " + lpparam.processName + ")");
         var packageName = lpparam.packageName;
         var classLoader = lpparam.classLoader;
 
         if (packageName.equals(BuildConfig.APPLICATION_ID)) {
+            XposedBridge.log("[WAE] Hooking module's own process");
             XposedHelpers.findAndHookMethod(MainActivity.class.getName(), lpparam.classLoader, "isXposedEnabled", XC_MethodReplacement.returnConstant(true));
             XposedHelpers.findAndHookMethod(PreferenceManager.class.getName(), lpparam.classLoader, "getDefaultSharedPreferencesMode", XC_MethodReplacement.returnConstant(ContextWrapper.MODE_WORLD_READABLE));
             return;
         }
+
+        XposedBridge.log("[WAE] Checking if target is WhatsApp or Business");
 
         AntiUpdater.hookSession(lpparam);
 
@@ -66,13 +79,147 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
         ScopeHook.hook(lpparam);
 
         //  AndroidPermissions.hook(lpparam); in tests
-        if ((packageName.equals(FeatureLoader.PACKAGE_WPP) && App.isOriginalPackage()) || packageName.equals(FeatureLoader.PACKAGE_BUSINESS)) {
-            XposedBridge.log("[•] This package: " + lpparam.packageName);
+        boolean isWpp = packageName.equals(FeatureLoader.PACKAGE_WPP);
+        boolean isBusiness = packageName.equals(FeatureLoader.PACKAGE_BUSINESS);
+        boolean isOriginal = App.isOriginalPackage();
 
-            // Load features
-            FeatureLoader.start(classLoader, getPref(), lpparam.appInfo.sourceDir);
+        XposedBridge.log("[WAE] isWpp: " + isWpp + ", isBusiness: " + isBusiness + ", isOriginal: " + isOriginal);
+
+        if ((isWpp && isOriginal) || isBusiness) {
+            XposedBridge.log("[WAE] Target verified. Starting FeatureLoader...");
+
+            try {
+                setupLogging(lpparam);
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] Logging hook setup failed: " + t.getMessage());
+            }
+
+            try {
+                FeatureLoader.start(classLoader, getPref(), lpparam.appInfo.sourceDir);
+                XposedBridge.log("[WAE] FeatureLoader.start completed successfully");
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] CRITICAL ERROR in FeatureLoader.start: " + t.getMessage());
+                XposedBridge.log(t);
+            }
 
             disableSecureFlag();
+        }
+    }
+
+    private void setupLogging(XC_LoadPackage.LoadPackageParam lpparam) {
+        if (logHookInstalled) {
+            return;
+        }
+        synchronized (WppXposed.class) {
+            if (logHookInstalled) {
+                return;
+            }
+
+            XposedHelpers.findAndHookMethod(XposedBridge.class, "log", String.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (Boolean.TRUE.equals(forwardingLog.get())) {
+                        return;
+                    }
+                    var appContext = com.waenhancer.xposed.utils.Utils.getApplication();
+                    if (appContext == null) {
+                        return;
+                    }
+
+                    String logMessage = (String) param.args[0];
+                    if (logMessage == null || logMessage.isEmpty()) {
+                        return;
+                    }
+
+                    forwardLog(appContext, lpparam.packageName, "[logcat][I][LSPosed] " + logMessage);
+                }
+            });
+
+            XposedHelpers.findAndHookMethod(XposedBridge.class, "log", Throwable.class, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (Boolean.TRUE.equals(forwardingLog.get())) {
+                        return;
+                    }
+                    var appContext = com.waenhancer.xposed.utils.Utils.getApplication();
+                    if (appContext == null) {
+                        return;
+                    }
+
+                    Throwable t = (Throwable) param.args[0];
+                    if (t == null) {
+                        return;
+                    }
+
+                    forwardLog(appContext, lpparam.packageName,
+                            "[logcat][E][LSPosed] " + android.util.Log.getStackTraceString(t));
+                }
+            });
+
+            try {
+                XposedHelpers.findAndHookMethod(android.util.Log.class, "println_native",
+                        int.class, int.class, String.class, String.class, new XC_MethodHook() {
+                            @Override
+                            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                                if (Boolean.TRUE.equals(forwardingLog.get())) {
+                                    return;
+                               }
+                                var appContext = com.waenhancer.xposed.utils.Utils.getApplication();
+                                if (appContext == null) {
+                                    return;
+                                }
+
+                                int priority = (int) param.args[1];
+                                String tag = (String) param.args[2];
+                                String message = (String) param.args[3];
+                                if (message == null || message.isEmpty()) {
+                                    return;
+                                }
+
+                                String normalizedTag = (tag == null || tag.isEmpty()) ? "NO_TAG" : tag;
+                                String line = "[logcat][" + priorityToString(priority) + "][" + normalizedTag + "] "
+                                        + message;
+                                forwardLog(appContext, lpparam.packageName, line);
+                            }
+                        });
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] Unable to hook Log.println_native: " + t.getMessage());
+            }
+            logHookInstalled = true;
+        }
+    }
+
+    private static void forwardLog(Context appContext, String packageName, String message) {
+        if (message == null || message.isEmpty()) {
+            return;
+        }
+        String normalized = message.length() > 6000
+                ? message.substring(0, 6000) + " ... [truncated]"
+                : message;
+        forwardingLog.set(Boolean.TRUE);
+        try {
+            com.waenhancer.utils.LogManager.addLogViaProvider(appContext, packageName, normalized);
+        } finally {
+            forwardingLog.set(Boolean.FALSE);
+        }
+    }
+
+    private static String priorityToString(int priority) {
+        switch (priority) {
+            case android.util.Log.VERBOSE:
+                return "V";
+            case android.util.Log.DEBUG:
+                return "D";
+            case android.util.Log.INFO:
+                return "I";
+            case android.util.Log.WARN:
+                return "W";
+            case android.util.Log.ERROR:
+                return "E";
+            case android.util.Log.ASSERT:
+                return "A";
+            default:
+                return String.valueOf(priority);
         }
     }
 

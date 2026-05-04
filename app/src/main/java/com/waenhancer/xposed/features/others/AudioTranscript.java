@@ -17,6 +17,7 @@ import java.io.File;
 import java.util.ArrayList;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -27,7 +28,7 @@ import okhttp3.RequestBody;
 
 public class AudioTranscript extends Feature {
 
-    public AudioTranscript(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public AudioTranscript(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

@@ -1,3 +1,2 @@
-[Improvements]
-- Updated app icon
-- Fixed names across the app
+[Fixed]
+Auto forward status on reply

@@ -26,13 +26,14 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class GroupAdmin extends Feature {
 
-    public GroupAdmin(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public GroupAdmin(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 
@@ -274,7 +275,7 @@ public class GroupAdmin extends Feature {
                     }
                 }
 
-                if (!looksLikeBind && XposedHelpers.findMethodExactIfExists(method.getDeclaringClass(), "setFMessage", method.getParameterTypes()) != null) {
+                if (!looksLikeBind && XposedHelpers.findMethodExactIfExists(method.getDeclaringClass(), "setFMessage", (Object) method.getParameterTypes()) != null) {
                     looksLikeBind = true;
                 }
 

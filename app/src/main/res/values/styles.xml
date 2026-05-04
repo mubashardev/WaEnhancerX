@@ -42,7 +42,7 @@
     </style>
 
     <style name="CardInfoStyle" parent="Widget.Material3.CardView.Filled">
-        <item name="cardCornerRadius">@dimen/card_radius_medium</item>
+        <item name="cardCornerRadius">28dp</item>
         <item name="cardElevation">0dp</item>
         <item name="strokeWidth">0dp</item>
     </style>

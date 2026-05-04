@@ -53,7 +53,7 @@ public class WppCore {
     private static Method mGenJidMethod;
     private static Class bottomDialog;
     private static SharedPreferences privPrefs;
-    public static de.robv.android.xposed.XSharedPreferences waePrefs;
+    public static android.content.SharedPreferences waePrefs;
     private static Object mStartUpConfig;
     private static Object mActionUser;
     private static SQLiteDatabase mWaDatabase;
@@ -72,7 +72,7 @@ public class WppCore {
     private static Object meManagerInstance;
     private static Object mConversationDelegate;
 
-    public static void Initialize(ClassLoader loader, de.robv.android.xposed.XSharedPreferences pref) throws Exception {
+    public static void Initialize(ClassLoader loader, android.content.SharedPreferences pref) throws Exception {
         waePrefs = pref;
         privPrefs = Utils.getApplication().getSharedPreferences("WaGlobal", Context.MODE_PRIVATE);
 
@@ -1045,6 +1045,11 @@ public class WppCore {
     public static void setPrivBoolean(String key, boolean value) {
         if (privPrefs == null) return;
         privPrefs.edit().putBoolean(key, value).apply();
+    }
+
+    public static void setPrivBooleanSync(String key, boolean value) {
+        if (privPrefs == null) return;
+        privPrefs.edit().putBoolean(key, value).commit();
     }
 
 

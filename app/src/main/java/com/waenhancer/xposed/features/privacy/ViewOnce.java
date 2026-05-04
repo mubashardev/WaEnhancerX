@@ -8,12 +8,13 @@ import com.waenhancer.xposed.core.components.FMessageWpp;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class ViewOnce extends Feature {
 
-    public ViewOnce(ClassLoader loader, XSharedPreferences preferences) {
+    public ViewOnce(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

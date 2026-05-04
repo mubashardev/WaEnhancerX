@@ -16,12 +16,13 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class RecoverDeleteForMe extends Feature {
 
-    public RecoverDeleteForMe(ClassLoader loader, XSharedPreferences preferences) {
+    public RecoverDeleteForMe(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

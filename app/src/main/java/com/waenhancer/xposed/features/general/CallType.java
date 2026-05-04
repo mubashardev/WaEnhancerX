@@ -19,6 +19,7 @@ import com.waenhancer.xposed.utils.ResId;
 import java.util.Objects;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -26,7 +27,7 @@ import de.robv.android.xposed.XposedHelpers;
 public class CallType extends Feature {
     private XC_MethodHook.Unhook hookBundleBoolean;
 
-    public CallType(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public CallType(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

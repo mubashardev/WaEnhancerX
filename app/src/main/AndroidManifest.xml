@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -46,6 +49,24 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         tools:targetApi="30">
+
+        <service
+            android:name=".services.LogService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                      android:value="Streaming Logcat logs for debugging Xposed module functionality." />
+        </service>
+
+        <receiver android:name=".receivers.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <!--suppress AndroidDomInspection -->
         <service
@@ -143,6 +164,12 @@
             android:theme="@style/AppTheme"
             android:label="@string/changelog_title"
             android:exported="true"
+            android:parentActivityName=".activities.MainActivity" />
+
+        <activity
+            android:name=".activities.LogsActivity"
+            android:label="@string/logs"
+            android:theme="@style/AppTheme"
             android:parentActivityName=".activities.MainActivity" />
 
         <activity

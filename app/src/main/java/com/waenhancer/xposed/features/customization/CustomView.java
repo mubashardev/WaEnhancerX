@@ -68,6 +68,7 @@ import cz.vutbr.web.css.TermFunction;
 import cz.vutbr.web.css.TermLength;
 import cz.vutbr.web.css.TermURI;
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -87,11 +88,11 @@ public class CustomView extends Feature {
     private final HashMap<String, Class<?>> resolvedClasses = new HashMap<>();
     private final HashMap<String, Boolean> widgetClassCache = new HashMap<>();
 
-    public CustomView(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public CustomView(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 
-    private static void changeDPI(Activity activity, XSharedPreferences prefs, Properties properties) {
+    private static void changeDPI(Activity activity, SharedPreferences prefs, Properties properties) {
         String dpiStr = null;
         if (!Objects.equals(prefs.getString("change_dpi", "0"), "0")) {
             dpiStr = prefs.getString("change_dpi", "0");
@@ -172,7 +173,14 @@ public class CustomView extends Feature {
         }
 
         if (!loaded) {
-            var sheet = CSSFactory.parseString(cssContent, new URL("https://base.url/"));
+            ClassLoader originalClassLoader = Thread.currentThread().getContextClassLoader();
+            StyleSheet sheet;
+            try {
+                Thread.currentThread().setContextClassLoader(CustomView.class.getClassLoader());
+                sheet = CSSFactory.parseString(cssContent, new URL("https://base.url/"));
+            } finally {
+                Thread.currentThread().setContextClassLoader(originalClassLoader);
+            }
             mapIds = new HashMap<>();
             leafMapIds = new HashMap<>();
             buildRuleMaps(sheet);

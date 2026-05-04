@@ -14,6 +14,7 @@ import com.waenhancer.xposed.utils.DesignUtils;
 import com.waenhancer.xposed.utils.Utils;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -26,7 +27,7 @@ public class SettingsInjector extends Feature {
 
     private final android.os.Handler hunterHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
-    public SettingsInjector(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public SettingsInjector(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

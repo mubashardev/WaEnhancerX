@@ -60,7 +60,7 @@
     </LinearLayout>
 
     <!-- Shimmer Layout (Shown while loading) -->
-    <com.facebook.shimmer.ShimmerFrameLayout
+    <!-- com.facebook.shimmer.ShimmerFrameLayout
         android:id="@+id/bsShimmerLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -71,14 +71,12 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
-            <!-- Fake Location -->
             <View
                 android:layout_width="140dp"
                 android:layout_height="16dp"
                 android:background="#E0E0E0"
                 android:layout_marginBottom="16dp" />
 
-            <!-- Fake Bio -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="16dp"
@@ -90,13 +88,20 @@
                 android:background="#E0E0E0"
                 android:layout_marginBottom="24dp" />
 
-            <!-- Fake Buttons -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="56dp"
                 android:background="#E0E0E0" />
         </LinearLayout>
-    </com.facebook.shimmer.ShimmerFrameLayout>
+    </com.facebook.shimmer.ShimmerFrameLayout -->
+
+    <com.google.android.material.loadingindicator.LoadingIndicator
+        android:id="@+id/expressive_loading_progress"
+        style="@style/Widget.Material3.LoadingIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:visibility="gone" />
 
     <!-- Content Layout (Hidden while loading) -->
     <LinearLayout

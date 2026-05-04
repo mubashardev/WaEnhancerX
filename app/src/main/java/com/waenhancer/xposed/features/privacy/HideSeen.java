@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -37,7 +38,7 @@ public class HideSeen extends Feature {
     private boolean hideReadGroup;
     private boolean hideStatusView;
 
-    public HideSeen(ClassLoader loader, XSharedPreferences preferences) {
+    public HideSeen(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

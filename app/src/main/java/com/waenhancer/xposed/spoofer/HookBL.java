@@ -54,6 +54,7 @@ import java.util.LinkedList;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -460,7 +461,7 @@ public final class HookBL {
         }
     }
 
-    public static void hook(ClassLoader loader, XSharedPreferences prefs) {
+    public static void hook(ClassLoader loader, SharedPreferences prefs) {
 
         boolean useCustomSpoofer = prefs.getBoolean("bootloader_spoofer_custom", false);
         if (useCustomSpoofer) {

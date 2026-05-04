@@ -14,6 +14,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.android.material.textview.MaterialTextView;
 import com.waenhancer.R;
+import com.google.android.material.loadingindicator.LoadingIndicator;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -257,7 +258,7 @@ public class BottomSheetHelper {
         com.google.android.material.textview.MaterialTextView tvName = view.findViewById(R.id.bsName);
         com.google.android.material.textview.MaterialTextView tvUsername = view.findViewById(R.id.bsUsername);
 
-        com.facebook.shimmer.ShimmerFrameLayout shimmerLayout = view.findViewById(R.id.bsShimmerLayout);
+        LoadingIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
         View contentLayout = view.findViewById(R.id.bsContentLayout);
 
         com.bumptech.glide.Glide.with(context)
@@ -271,8 +272,9 @@ public class BottomSheetHelper {
         tvName.setText(username);
         tvUsername.setText("@" + username);
 
-        shimmerLayout.setVisibility(View.VISIBLE);
-        shimmerLayout.startShimmer();
+        if (progressIndicator != null) {
+            progressIndicator.setVisibility(View.VISIBLE);
+        }
         contentLayout.setVisibility(View.GONE);
 
         bottomSheet.show();
@@ -469,11 +471,13 @@ public class BottomSheetHelper {
                 }
             });
 
-            com.facebook.shimmer.ShimmerFrameLayout shimmerLayout = view.findViewById(R.id.bsShimmerLayout);
+            // com.facebook.shimmer.ShimmerFrameLayout shimmerLayout = view.findViewById(R.id.bsShimmerLayout);
+            LoadingIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
             View contentLayout = view.findViewById(R.id.bsContentLayout);
 
-            shimmerLayout.stopShimmer();
-            shimmerLayout.setVisibility(View.GONE);
+            // shimmerLayout.stopShimmer();
+            // shimmerLayout.setVisibility(View.GONE);
+            if (progressIndicator != null) progressIndicator.setVisibility(View.GONE);
             contentLayout.setVisibility(View.VISIBLE);
 
         } catch (Exception e) {
@@ -498,14 +502,14 @@ public class BottomSheetHelper {
         com.google.android.material.textview.MaterialTextView tvTitle = view.findViewById(R.id.bsContribTitle);
         tvTitle.setText(displayName + "'s Contributions");
 
-        com.facebook.shimmer.ShimmerFrameLayout shimmerLayout = view.findViewById(R.id.bsContribShimmer);
-        View contentLayout = view.findViewById(R.id.bsContribContent);
-
-        shimmerLayout.setVisibility(View.VISIBLE);
-        shimmerLayout.startShimmer();
-        contentLayout.setVisibility(View.GONE);
-
         bottomSheet.show();
+
+        LoadingIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
+        View contentLayout = view.findViewById(R.id.bsContribContent);
+        if (progressIndicator != null) {
+            progressIndicator.setVisibility(View.VISIBLE);
+        }
+        contentLayout.setVisibility(View.GONE);
 
         android.content.SharedPreferences prefs = context.getSharedPreferences("github_user_cache",
                 Context.MODE_PRIVATE);
@@ -604,7 +608,8 @@ public class BottomSheetHelper {
             com.google.android.material.textview.MaterialTextView tvTotal = view.findViewById(R.id.bsContribTotal);
             com.google.android.material.textview.MaterialTextView tvAdded = view.findViewById(R.id.bsContribAdded);
             com.google.android.material.textview.MaterialTextView tvDeleted = view.findViewById(R.id.bsContribDeleted);
-            com.facebook.shimmer.ShimmerFrameLayout shimmerLayout = view.findViewById(R.id.bsContribShimmer);
+            // com.facebook.shimmer.ShimmerFrameLayout shimmerLayout = view.findViewById(R.id.bsContribShimmer);
+            LoadingIndicator progressIndicator = view.findViewById(R.id.expressive_loading_progress);
             View contentLayout = view.findViewById(R.id.bsContribContent);
 
             java.text.NumberFormat format = java.text.NumberFormat.getInstance();
@@ -612,8 +617,9 @@ public class BottomSheetHelper {
             tvAdded.setText("+ " + format.format(linesAdded));
             tvDeleted.setText("~ " + format.format(linesDeleted));
 
-            shimmerLayout.stopShimmer();
-            shimmerLayout.setVisibility(View.GONE);
+            // shimmerLayout.stopShimmer();
+            // shimmerLayout.setVisibility(View.GONE);
+            if (progressIndicator != null) progressIndicator.setVisibility(View.GONE);
             contentLayout.setVisibility(View.VISIBLE);
         } catch (Exception e) {
             e.printStackTrace();

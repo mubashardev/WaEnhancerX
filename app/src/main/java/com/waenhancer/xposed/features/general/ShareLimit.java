@@ -8,11 +8,12 @@ import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import java.util.HashMap;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class ShareLimit extends Feature {
-    public ShareLimit(ClassLoader loader, XSharedPreferences preferences) {
+    public ShareLimit(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

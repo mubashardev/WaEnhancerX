@@ -51,13 +51,14 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class Utils {
 
     private static final ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-    public static XSharedPreferences xprefs;
+    public static android.content.SharedPreferences xprefs;
     private static final HashMap<String, Integer> ids = new HashMap<>();
 
     public static void init(ClassLoader loader) {
@@ -300,7 +301,7 @@ public class Utils {
                 });
     }
 
-    public static Properties getProperties(XSharedPreferences prefs, String key, String checkKey) {
+    public static Properties getProperties(SharedPreferences prefs, String key, String checkKey) {
         Properties properties = new Properties();
         if (checkKey != null && !prefs.getBoolean(checkKey, false))
             return properties;

@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
@@ -30,7 +31,7 @@ public class IGStatus extends Feature {
     public static ArrayList<Object> itens = new ArrayList<>();
     private static final ArrayList<IGStatusView> mListStatusContainer = new ArrayList<>();
 
-    public IGStatus(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public IGStatus(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

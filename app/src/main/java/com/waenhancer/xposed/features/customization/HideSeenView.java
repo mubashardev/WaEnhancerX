@@ -17,12 +17,13 @@ import com.waenhancer.xposed.core.db.MessageHistory;
 import com.waenhancer.xposed.features.listeners.ConversationItemListener;
 import com.waenhancer.xposed.utils.Utils;
 
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 
 
 public class HideSeenView extends Feature {
 
-    public HideSeenView(ClassLoader loader, XSharedPreferences preferences) {
+    public HideSeenView(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

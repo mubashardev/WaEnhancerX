@@ -44,7 +44,7 @@ public class CustomPrivacy extends Feature {
     private Method chatUserJidMethod;
     private Method groupUserJidMethod;
 
-    public CustomPrivacy(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public CustomPrivacy(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

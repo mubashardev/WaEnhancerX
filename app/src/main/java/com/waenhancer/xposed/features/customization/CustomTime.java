@@ -10,12 +10,13 @@ import java.util.Date;
 import java.util.Locale;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class CustomTime extends Feature {
 
-    public CustomTime(ClassLoader loader, XSharedPreferences preferences) {
+    public CustomTime(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

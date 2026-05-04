@@ -23,6 +23,7 @@ import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.utils.Utils;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -42,13 +43,13 @@ public class VideoNoteAttachment extends Feature {
         XposedBridge.log("WAE_VideoNote: " + message);
     }
 
-    public VideoNoteAttachment(ClassLoader loader, XSharedPreferences preferences) {
+    public VideoNoteAttachment(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 
     @Override
     public void doHook() throws Throwable {
-        prefs.reload();
+        reloadPrefs();
         boolean enabled = prefs.getBoolean("send_video_as_video_note", false);
         boolean showButton = enabled;
 

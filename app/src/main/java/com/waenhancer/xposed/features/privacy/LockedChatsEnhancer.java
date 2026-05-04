@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -23,7 +24,7 @@ public class LockedChatsEnhancer extends Feature {
 
     private Object chatCache;
 
-    public LockedChatsEnhancer(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public LockedChatsEnhancer(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

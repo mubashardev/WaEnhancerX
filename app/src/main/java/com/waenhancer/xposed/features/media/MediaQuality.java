@@ -22,6 +22,7 @@ import java.lang.reflect.Method;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -38,7 +39,7 @@ public class MediaQuality extends Feature {
     private static final int FALLBACK_LANDSCAPE_WIDTH = 1280;
     private static final int FALLBACK_LANDSCAPE_HEIGHT = 720;
 
-    public MediaQuality(ClassLoader loader, XSharedPreferences preferences) {
+    public MediaQuality(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedHelpers;
 
@@ -35,7 +36,7 @@ public class ActivityController extends Feature {
 
     private static String Key;
 
-    public ActivityController(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public ActivityController(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

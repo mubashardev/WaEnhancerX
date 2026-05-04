@@ -12,11 +12,12 @@ import com.waenhancer.xposed.utils.ResId;
 import com.waenhancer.xposed.utils.Utils;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class CopyStatus extends Feature {
-    public CopyStatus(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public CopyStatus(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

@@ -17,11 +17,12 @@ import java.util.Objects;
 import java.util.Properties;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class BubbleColors extends Feature {
-    public BubbleColors(ClassLoader loader, XSharedPreferences preferences) {
+    public BubbleColors(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

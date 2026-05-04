@@ -20,12 +20,13 @@ import org.luckypray.dexkit.query.enums.StringMatchType;
 
 import java.lang.reflect.Field;
 
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 
 public class DeleteStatus extends Feature {
 
 
-    public DeleteStatus(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public DeleteStatus(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

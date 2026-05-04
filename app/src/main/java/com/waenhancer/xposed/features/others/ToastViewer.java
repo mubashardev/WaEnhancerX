@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
@@ -39,7 +40,7 @@ public class ToastViewer extends Feature {
     private static final Map<String, Long> lastEventTimeMap = new HashMap<>();
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
-    public ToastViewer(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public ToastViewer(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
         startCleanupTask();
     }

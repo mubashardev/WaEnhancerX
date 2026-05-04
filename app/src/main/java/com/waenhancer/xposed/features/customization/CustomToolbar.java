@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -49,7 +50,7 @@ public class CustomToolbar extends Feature {
     private String mDateExpiration;
     private static Method onMenuItemSelected;
 
-    public CustomToolbar(ClassLoader loader, XSharedPreferences preferences) {
+    public CustomToolbar(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

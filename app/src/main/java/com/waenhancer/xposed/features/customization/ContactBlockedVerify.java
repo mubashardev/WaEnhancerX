@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -45,7 +46,7 @@ public class ContactBlockedVerify extends Feature {
 
     private final ContactCheckState state = new ContactCheckState();
 
-    public ContactBlockedVerify(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public ContactBlockedVerify(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

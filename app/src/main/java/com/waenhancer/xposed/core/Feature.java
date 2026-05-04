@@ -4,16 +4,17 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public abstract class Feature {
 
     public final ClassLoader classLoader;
-    public final XSharedPreferences prefs;
+    public final SharedPreferences prefs;
     public static boolean DEBUG = false;
 
-    public Feature(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public Feature(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         this.classLoader = classLoader;
         this.prefs = preferences;
     }
@@ -55,9 +56,15 @@ public abstract class Feature {
         }
     }
 
+    protected void reloadPrefs() {
+        if (prefs instanceof XSharedPreferences) {
+            ((XSharedPreferences) prefs).reload();
+        }
+    }
+
     protected String getSafeString(String key, String defaultValue) {
         try {
-            prefs.reload();
+            reloadPrefs();
             Object val = prefs.getAll().get(key);
             if (val == null) return defaultValue;
             if (val instanceof String) return (String) val;

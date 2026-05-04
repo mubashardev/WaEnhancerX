@@ -19,12 +19,13 @@ import com.waenhancer.xposed.utils.Utils;
 import org.luckypray.dexkit.query.enums.StringMatchType;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedHelpers;
 
 public class DownloadProfile extends Feature {
 
-    public DownloadProfile(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public DownloadProfile(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

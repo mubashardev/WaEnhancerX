@@ -15,3 +15,6 @@ key_base64.txt
 /app/.project
 ref
 .planning
+.kotlin
+.env
+google-services.json

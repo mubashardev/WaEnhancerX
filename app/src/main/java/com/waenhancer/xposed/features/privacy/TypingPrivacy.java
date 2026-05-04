@@ -10,12 +10,13 @@ import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import java.lang.reflect.Method;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class TypingPrivacy extends Feature {
 
-    public TypingPrivacy(ClassLoader loader, XSharedPreferences preferences) {
+    public TypingPrivacy(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

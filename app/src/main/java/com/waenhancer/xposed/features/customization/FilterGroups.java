@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Objects;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -43,7 +44,7 @@ public class FilterGroups extends Feature {
     private TextView tabConversas;
     private TextView tabGrupos;
 
-    public FilterGroups(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public FilterGroups(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

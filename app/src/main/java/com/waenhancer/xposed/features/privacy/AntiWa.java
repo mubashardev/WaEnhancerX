@@ -12,11 +12,12 @@ import java.io.File;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class AntiWa extends Feature {
-    public AntiWa(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public AntiWa(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

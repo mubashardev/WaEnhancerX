@@ -14,12 +14,13 @@ import com.waenhancer.xposed.utils.Utils;
 import org.luckypray.dexkit.query.enums.StringMatchType;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class BackupRestore extends Feature {
 
-    public BackupRestore(ClassLoader loader, XSharedPreferences preferences) {
+    public BackupRestore(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

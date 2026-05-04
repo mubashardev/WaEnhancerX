@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -30,7 +31,7 @@ public class MenuHome extends Feature {
     public static HashSet<HomeMenuItem> menuItems = new LinkedHashSet<>();
 
 
-    public MenuHome(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public MenuHome(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

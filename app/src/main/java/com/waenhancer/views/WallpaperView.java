@@ -23,14 +23,15 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.Properties;
 
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 
 @SuppressLint("ViewConstructor")
 public class WallpaperView extends FrameLayout {
-    private final XSharedPreferences prefs;
+    private final SharedPreferences prefs;
     private final Properties properties;
 
-    public WallpaperView(@NonNull Context context, XSharedPreferences preferences, Properties properties) {
+    public WallpaperView(@NonNull Context context, SharedPreferences preferences, Properties properties) {
         super(context);
         this.prefs = preferences;
         this.properties = properties;

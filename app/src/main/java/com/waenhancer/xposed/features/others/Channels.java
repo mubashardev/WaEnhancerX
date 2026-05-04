@@ -14,12 +14,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class Channels extends Feature {
-    public Channels(ClassLoader loader, XSharedPreferences preferences) {
+    public Channels(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

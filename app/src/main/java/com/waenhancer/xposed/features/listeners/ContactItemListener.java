@@ -12,6 +12,7 @@ import com.waenhancer.xposed.utils.ReflectionUtils;
 import java.util.HashSet;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
@@ -19,7 +20,7 @@ public class ContactItemListener extends Feature {
 
     public static HashSet<OnContactItemListener> contactListeners = new HashSet<>();
 
-    public ContactItemListener(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public ContactItemListener(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

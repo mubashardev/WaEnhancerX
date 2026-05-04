@@ -18,11 +18,12 @@ import com.waenhancer.xposed.utils.Utils;
 import java.lang.reflect.Method;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class TagMessage extends Feature {
-    public TagMessage(ClassLoader loader, XSharedPreferences preferences) {
+    public TagMessage(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

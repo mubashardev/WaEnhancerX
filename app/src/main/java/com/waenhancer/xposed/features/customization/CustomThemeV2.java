@@ -43,6 +43,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -55,7 +56,7 @@ public class CustomThemeV2 extends Feature {
     private Properties properties;
     // private ViewGroup mContent;
 
-    public CustomThemeV2(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public CustomThemeV2(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

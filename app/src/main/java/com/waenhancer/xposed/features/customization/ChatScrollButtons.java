@@ -13,13 +13,14 @@ import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.utils.Utils;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class ChatScrollButtons extends Feature {
 
-    public ChatScrollButtons(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public ChatScrollButtons(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

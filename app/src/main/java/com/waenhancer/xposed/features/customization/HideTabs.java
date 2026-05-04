@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -26,7 +27,7 @@ import de.robv.android.xposed.XposedHelpers;
 public class HideTabs extends Feature {
     private Object mTabPagerInstance;
 
-    public HideTabs(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public HideTabs(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

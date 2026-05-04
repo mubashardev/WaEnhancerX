@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -60,7 +61,7 @@ public class CallRecording extends Feature {
 
     private static final AtomicBoolean permissionGranted = new AtomicBoolean(false);
 
-    public CallRecording(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public CallRecording(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

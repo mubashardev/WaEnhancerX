@@ -17,6 +17,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -25,7 +26,7 @@ public class MenuStatusListener extends Feature {
 
     public static HashSet<onMenuItemStatusListener> menuStatuses = new HashSet<>();
 
-    public MenuStatusListener(@NonNull ClassLoader classLoader, @NonNull XSharedPreferences preferences) {
+    public MenuStatusListener(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 

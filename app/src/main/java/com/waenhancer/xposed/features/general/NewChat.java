@@ -20,11 +20,12 @@ import com.waenhancer.xposed.utils.ResId;
 import com.waenhancer.xposed.utils.Utils;
 
 import de.robv.android.xposed.XC_MethodHook;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedHelpers;
 
 public class NewChat extends Feature {
-    public NewChat(@NonNull ClassLoader loader, @NonNull XSharedPreferences preferences) {
+    public NewChat(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 

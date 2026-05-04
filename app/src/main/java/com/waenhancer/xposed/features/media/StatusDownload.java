@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 import de.robv.android.xposed.XposedBridge;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 
 public class StatusDownload extends Feature {
@@ -37,7 +38,7 @@ public class StatusDownload extends Feature {
     private static final int MENU_ID_DOWNLOAD = 0x7EAD0001;
     private static final int MENU_ID_SHARE_STATUS = 0x7EAD0002;
 
-    public StatusDownload(ClassLoader loader, XSharedPreferences preferences) {
+    public StatusDownload(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

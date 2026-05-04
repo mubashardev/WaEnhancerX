@@ -7,11 +7,12 @@ import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 
 import de.robv.android.xposed.XC_MethodReplacement;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 
 public class FreezeLastSeen extends Feature {
-    public FreezeLastSeen(ClassLoader loader, XSharedPreferences preferences) {
+    public FreezeLastSeen(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

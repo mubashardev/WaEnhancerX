@@ -41,6 +41,7 @@ import java.util.concurrent.CompletableFuture;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
+import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
@@ -52,7 +53,7 @@ public class Others extends Feature {
     public static HashMap<Integer, Integer> propsInteger = new HashMap<>();
     private Properties properties;
 
-    public Others(ClassLoader loader, XSharedPreferences preferences) {
+    public Others(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 

@@ -3,6 +3,8 @@ package com.waenhancer.xposed.bridge.providers;
 import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 
@@ -25,9 +27,23 @@ public class HookProvider extends ContentProvider {
         return getContext() != null;
     }
 
+    private SharedPreferences getPrefs() {
+        Context context = getContext();
+        if (context == null) return null;
+        // Explicitly target the default preferences file used by the UI
+        String prefsName = context.getPackageName() + "_preferences";
+        return context.getSharedPreferences(prefsName, Context.MODE_PRIVATE);
+    }
+
     @Nullable
     @Override
     public Bundle call(@NonNull String method, @Nullable String arg, @Nullable Bundle extras) {
+        android.util.Log.d("WAE_Provider", "HookProvider.call: method=" + method + ", arg=" + arg);
+        SharedPreferences prefs = getPrefs();
+        if (prefs == null) {
+            android.util.Log.e("WAE_Provider", "Failed to get SharedPreferences in HookProvider");
+            return null;
+        }
         if (method.equals("getHookBinder")) {
             Bundle result = new Bundle();
             result.putBinder("binder", HookBinder.getInstance());
@@ -37,15 +53,45 @@ public class HookProvider extends ContentProvider {
         if (context == null) {
             return null;
         }
-        var prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        if ("get_all_preferences".equals(method)) {
+        if ("add_log".equals(method) && extras != null) {
+            if (!prefs.getBoolean("logging_enabled", false)) {
+                return Bundle.EMPTY;
+            }
+            String pkg = extras.getString("package");
+            String msg = extras.getString("message");
+            if (pkg != null && msg != null) {
+                com.waenhancer.utils.LogManager.addLog(context, pkg, msg);
+            }
+            return Bundle.EMPTY;
+        }
+        if ("get_preference".equals(method) && extras != null) {
+            String key = extras.getString("key");
             Bundle result = new Bundle();
-            result.putSerializable("prefs", new HashMap<>(prefs.getAll()));
+            if (key != null) {
+                Object value = prefs.getAll().get(key);
+                if (value instanceof Boolean) result.putBoolean("value", (Boolean) value);
+                else if (value instanceof String) result.putString("value", (String) value);
+                else if (value instanceof Integer) result.putInt("value", (Integer) value);
+                else if (value instanceof Long) result.putLong("value", (Long) value);
+                else if (value instanceof Float) result.putFloat("value", (Float) value);
+            }
+            return result;
+        }
+        if (method.equals("get_all_preferences")) {
+            var all = prefs.getAll();
+            android.util.Log.d("WAE_Provider", "Serving " + all.size() + " preferences to caller (UID: " + android.os.Binder.getCallingUid() + ")");
+            // Dump keys for diagnosis
+            for (String k : all.keySet()) {
+                android.util.Log.v("WAE_Provider", "  Key: " + k + " = " + all.get(k));
+            }
+            Bundle result = new Bundle();
+            result.putSerializable("prefs", new HashMap<>(all));
             return result;
         }
         if ("put_preference".equals(method) && extras != null) {
             String key = extras.getString("key");
             String type = extras.getString("type");
+            android.util.Log.d("WAE_Provider", "Writing preference: " + key + " (from UID: " + android.os.Binder.getCallingUid() + ")");
             if (key == null || type == null) {
                 return null;
             }
@@ -74,17 +120,20 @@ public class HookProvider extends ContentProvider {
                     return null;
             }
             editor.commit();
+            context.getContentResolver().notifyChange(Uri.parse("content://" + com.waenhancer.BuildConfig.APPLICATION_ID + ".hookprovider/preferences"), null);
             return Bundle.EMPTY;
         }
         if ("remove_preference".equals(method) && extras != null) {
             String key = extras.getString("key");
             if (key != null) {
                 prefs.edit().remove(key).commit();
+                context.getContentResolver().notifyChange(Uri.parse("content://" + com.waenhancer.BuildConfig.APPLICATION_ID + ".hookprovider/preferences"), null);
                 return Bundle.EMPTY;
             }
         }
         if ("clear_preferences".equals(method)) {
             prefs.edit().clear().commit();
+            context.getContentResolver().notifyChange(Uri.parse("content://" + com.waenhancer.BuildConfig.APPLICATION_ID + ".hookprovider/preferences"), null);
             return Bundle.EMPTY;
         }
         return null;
