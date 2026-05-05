@@ -138,6 +138,12 @@
     <string name="business_is_not_running_or_has_not_been_activated_in_lsposed">WA Business is not running or has not been activated in Lsposed</string>
     <string name="restart_wpp">It is necessary to restart WhatsApp for the changes in WaEnhancer X to take effect.\n\nDo you want to restart?</string>
     <string name="version_s_not_listed">Version %s not listed in supported versions!\nPlease use supported WhatsApp version!</string>
+    <string name="framework_not_detected">Xposed Framework Not Detected</string>
+    <string name="framework_detected">Xposed Framework Detected</string>
+    <string name="module_not_in_scope">Module Disabled</string>
+    <string name="module_active_in_manager">Module Hook Active</string>
+    <string name="whatsapp_linked">WhatsApp Linked</string>
+    <string name="whatsapp_not_linked">WhatsApp not linked yet</string>
     <string name="media">Media</string>
     <string name="show_button_to_send_blue_tick">Show Button to send blue tick</string>
     <string name="show_button_to_send_blue_tick_sum">Show Button to send blue tick (mark as read/viewed)</string>

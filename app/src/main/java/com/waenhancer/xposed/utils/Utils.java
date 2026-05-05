@@ -29,7 +29,7 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.documentfile.provider.DocumentFile;
 
 import com.waenhancer.App;
-import com.waenhancer.WppXposed;
+
 import com.waenhancer.xposed.core.FeatureLoader;
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.components.FMessageWpp;
@@ -161,7 +161,7 @@ public class Utils {
                 throw new Exception("Folder not found!");
             return folder + "/WhatsApp/" + name;
         }
-        String folder = WppXposed.getPref().getString("download_local", "/sdcard/Download");
+        String folder = XPrefManager.getPref(getApplication()).getString("download_local", "/sdcard/Download");
         var waFolder = new File(folder, "WhatsApp");
         var filePath = new File(waFolder, name);
         try {

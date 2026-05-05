@@ -26,6 +26,7 @@ import com.waenhancer.xposed.bridge.client.ProviderSharedPreferences;
 import com.waenhancer.xposed.utils.ThemeUtils;
 import com.waenhancer.xposed.utils.ResId;
 import com.waenhancer.xposed.utils.Utils;
+import com.waenhancer.xposed.utils.XPrefManager;
 
 import java.util.Objects;
 import java.util.LinkedHashSet;
@@ -439,15 +440,6 @@ public abstract class EmbeddedBasePreferenceFragment extends PreferenceFragmentC
     }
 
     private SharedPreferences getModuleSharedPreferences(android.content.Context context) {
-        if (context.getPackageName().equals(BuildConfig.APPLICATION_ID)) {
-            return androidx.preference.PreferenceManager.getDefaultSharedPreferences(context);
-        }
-        try {
-            // Use reflection to avoid direct dependency on WppXposed/XSharedPreferences in module process
-            Class<?> clazz = Class.forName("com.waenhancer.WppXposed");
-            return (SharedPreferences) clazz.getMethod("getPref").invoke(null);
-        } catch (Throwable t) {
-            return context.getSharedPreferences(BuildConfig.APPLICATION_ID + "_preferences", android.content.Context.MODE_PRIVATE);
-        }
+        return XPrefManager.getPref(context);
     }
 }

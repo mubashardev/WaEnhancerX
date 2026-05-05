@@ -70,12 +70,15 @@ public class HomeFragment extends BaseFragment {
 
             @Override
             public void onReceive(Context context, Intent intent) {
+                String pkg = intent.getStringExtra("PKG");
+                Log.d("WAE_STATUS", "Received RECEIVER_WPP broadcast from: " + pkg);
                 try {
-                    if (FeatureLoader.PACKAGE_WPP.equals(intent.getStringExtra("PKG")))
+                    if (FeatureLoader.PACKAGE_WPP.equals(pkg))
                         receiverBroadcastWpp(context, intent);
                     else
                         receiverBroadcastBusiness(context, intent);
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    Log.e("WAE_STATUS", "Error in receiverBroadcast: " + e.getMessage());
                 }
             }
         }, intentFilter, ContextCompat.RECEIVER_EXPORTED);
@@ -340,7 +343,7 @@ public class HomeFragment extends BaseFragment {
     @SuppressLint("StringFormatInvalid")
     private void receiverBroadcastBusiness(Context context, Intent intent) {
         markModuleActive();
-        setModuleActiveState(true);
+        updateModuleStatusUi(MainActivity.isXposedFrameworkPresent(context), com.waenhancer.utils.ModuleStatus.isModuleActive(), true);
         binding.statusTitle3.setText(R.string.business_in_background);
         var version = intent.getStringExtra("VERSION");
         var supported_list = Arrays.asList(context.getResources().getStringArray(R.array.supported_versions_business));
@@ -358,7 +361,7 @@ public class HomeFragment extends BaseFragment {
     @SuppressLint("StringFormatInvalid")
     private void receiverBroadcastWpp(Context context, Intent intent) {
         markModuleActive();
-        setModuleActiveState(true);
+        updateModuleStatusUi(MainActivity.isXposedFrameworkPresent(context), com.waenhancer.utils.ModuleStatus.isModuleActive(), true);
         binding.statusTitle2.setText(R.string.whatsapp_in_background);
         var version = intent.getStringExtra("VERSION");
         var supported_list = Arrays.asList(context.getResources().getStringArray(R.array.supported_versions_wpp));
@@ -495,24 +498,13 @@ public class HomeFragment extends BaseFragment {
 
     @SuppressLint("StringFormatInvalid")
     private void checkStateWpp(FragmentActivity activity) {
-        boolean enabled = MainActivity.isXposedEnabled() || hasRecentModuleHeartbeat();
+        boolean frameworkPresent = MainActivity.isXposedFrameworkPresent(requireContext());
+        boolean hookEnabled = com.waenhancer.utils.ModuleStatus.isModuleActive();
+        boolean heartbeatEnabled = hasRecentModuleHeartbeat();
         
-        if (enabled) {
-            setModuleActiveState(true);
-            isInitialCheck = false;
-        } else {
-            if (isInitialCheck) {
-                // Wait briefly for WhatsApp broadcast response to prevent flapping
-                binding.getRoot().postDelayed(() -> {
-                    if (!MainActivity.isXposedEnabled() && !hasRecentModuleHeartbeat()) {
-                        setModuleActiveState(false);
-                    }
-                }, 2500);
-                isInitialCheck = false;
-            } else {
-                setModuleActiveState(false);
-            }
-        }
+        Log.d("WAE_STATUS", "checkStateWpp: framework=" + frameworkPresent + ", hook=" + hookEnabled + ", heartbeat=" + heartbeatEnabled);
+        
+        updateModuleStatusUi(frameworkPresent, hookEnabled, heartbeatEnabled);
         
         if (isInstalled(FeatureLoader.PACKAGE_WPP) && App.isOriginalPackage()) {
             disableWpp(activity);
@@ -525,10 +517,11 @@ public class HomeFragment extends BaseFragment {
         } else {
             binding.status3.setVisibility(View.GONE);
         }
+        
+        // We still send the check broadcast to keep the heartbeat alive for when WhatsApp IS running,
+        // but we no longer wait for its response to determine the basic "Enabled" status.
         checkWpp(activity);
 
-        // Retry after a delay to catch the roundtrip broadcast from WhatsApp
-        binding.getRoot().postDelayed(() -> checkWpp(activity), 3000);
         binding.deviceName.setText(Build.MANUFACTURER);
         binding.sdk.setText(String.valueOf(Build.VERSION.SDK_INT));
         binding.modelName.setText(Build.DEVICE);
@@ -551,6 +544,38 @@ public class HomeFragment extends BaseFragment {
         checkPackageVersion(activity, FeatureLoader.PACKAGE_BUSINESS, binding.businessInstalledVersion,
                 binding.businessVersionStatus, binding.businessStatusIcon, binding.businessUnsupportedBtn,
                 R.array.supported_versions_business);
+    }
+
+    private void updateModuleStatusUi(boolean frameworkPresent, boolean hookEnabled, boolean heartbeatEnabled) {
+        // Show version name in the badge
+        binding.statusSummary.setText(String.format("v%s", BuildConfig.VERSION_NAME));
+        binding.statusSummary.setVisibility(View.VISIBLE);
+
+        if (hookEnabled) {
+            // BEST STATE: Manager is hooked
+            binding.statusIcon.setImageResource(R.drawable.ic_round_check_circle_24);
+            binding.statusIcon.setColorFilter(null); 
+            binding.statusTitle.setText(R.string.module_enabled);
+            binding.status.getChildAt(0).setBackgroundResource(R.drawable.hero_glow_enabled);
+        } else if (heartbeatEnabled) {
+            // PARTIAL STATE: WhatsApp works, but Manager is NOT in scope
+            binding.statusIcon.setImageResource(R.drawable.ic_round_warning_24);
+            binding.statusIcon.setColorFilter(ContextCompat.getColor(requireContext(), android.R.color.holo_orange_light));
+            binding.statusTitle.setText(R.string.module_not_in_scope);
+            binding.status.getChildAt(0).setBackgroundResource(R.drawable.hero_glow_disabled);
+        } else if (frameworkPresent) {
+            // IDLE STATE: Framework detected but nothing is happening
+            binding.statusIcon.setImageResource(R.drawable.ic_round_warning_24);
+            binding.statusIcon.setColorFilter(ContextCompat.getColor(requireContext(), android.R.color.holo_orange_light));
+            binding.statusTitle.setText(R.string.module_disabled);
+            binding.status.getChildAt(0).setBackgroundResource(R.drawable.hero_glow_disabled);
+        } else {
+            // ERROR STATE: No framework at all
+            binding.statusIcon.setImageResource(R.drawable.ic_round_error_outline_24);
+            binding.statusIcon.setColorFilter(ContextCompat.getColor(requireContext(), android.R.color.holo_red_light));
+            binding.statusTitle.setText(R.string.framework_not_detected);
+            binding.status.getChildAt(0).setBackgroundResource(R.drawable.hero_glow_disabled);
+        }
     }
 
     private boolean isInstalled(String packageWpp) {
@@ -631,6 +656,7 @@ public class HomeFragment extends BaseFragment {
     }
 
     private static void checkWpp(FragmentActivity activity) {
+        Log.d("WAE_STATUS", "Sending CHECK_WPP broadcast to " + BuildConfig.APPLICATION_ID);
         Intent checkWpp = new Intent(BuildConfig.APPLICATION_ID + ".CHECK_WPP");
         // Ensure broadcast reaches WhatsApp even if it is in background/stopped state (Android 14+)
         checkWpp.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
@@ -694,21 +720,7 @@ public class HomeFragment extends BaseFragment {
                 .show();
     }
 
-    private void setModuleActiveState(boolean enabled) {
-        if (enabled) {
-            binding.statusIcon.setImageResource(R.drawable.ic_round_check_circle_24);
-            binding.statusTitle.setText(R.string.module_enabled);
-            binding.statusSummary.setText(String.format(getString(R.string.version_s), BuildConfig.VERSION_NAME));
-            binding.statusSummary.setVisibility(View.VISIBLE);
-            binding.status.getChildAt(0).setBackgroundResource(R.drawable.hero_glow_enabled);
-        } else {
-            binding.statusIcon.setImageResource(R.drawable.ic_round_error_outline_24);
-            binding.statusTitle.setText(R.string.module_disabled);
-            binding.status.getChildAt(0).setBackgroundResource(R.drawable.hero_glow_disabled);
-            binding.statusSummary.setText(String.format(getString(R.string.version_s), BuildConfig.VERSION_NAME));
-            binding.statusSummary.setVisibility(View.VISIBLE);
-        }
-    }
+    // setModuleActiveState is replaced by updateModuleStatusUi
 
     private void markModuleActive() {
         var prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
@@ -718,8 +730,13 @@ public class HomeFragment extends BaseFragment {
     private boolean hasRecentModuleHeartbeat() {
         var prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
         long lastSeen = prefs.getLong(PREF_MODULE_HEARTBEAT, 0L);
-        // Expiry threshold: 30 seconds (down from 6 hours) for better accuracy
-        return lastSeen > 0L && (System.currentTimeMillis() - lastSeen) < 30 * 1000L;
+        if (lastSeen == 0) return false;
+        
+        long diff = System.currentTimeMillis() - lastSeen;
+        // Expiry threshold: 24 hours for persistent status even if WhatsApp is force-stopped
+        boolean active = diff < 24 * 60 * 60 * 1000L;
+        Log.v("WAE_STATUS", "Heartbeat check: lastSeen=" + lastSeen + ", diff=" + (diff/1000) + "s, active=" + active);
+        return active;
     }
 
     private void showClearCacheConfirmation() {

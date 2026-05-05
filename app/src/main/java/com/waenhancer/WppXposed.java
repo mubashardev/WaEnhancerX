@@ -64,8 +64,8 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
         var classLoader = lpparam.classLoader;
 
         if (packageName.equals(BuildConfig.APPLICATION_ID)) {
-            XposedBridge.log("[WAE] Hooking module's own process");
-            XposedHelpers.findAndHookMethod(MainActivity.class.getName(), lpparam.classLoader, "isXposedEnabled", XC_MethodReplacement.returnConstant(true));
+            XposedBridge.log("[WAE] Hooking module's own process: " + packageName);
+            XposedHelpers.findAndHookMethod("com.waenhancer.utils.ModuleStatus", lpparam.classLoader, "isModuleActive", XC_MethodReplacement.returnConstant(true));
             XposedHelpers.findAndHookMethod(PreferenceManager.class.getName(), lpparam.classLoader, "getDefaultSharedPreferencesMode", XC_MethodReplacement.returnConstant(ContextWrapper.MODE_WORLD_READABLE));
             return;
         }
