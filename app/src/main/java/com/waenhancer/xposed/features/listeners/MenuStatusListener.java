@@ -26,13 +26,17 @@ public class MenuStatusListener extends Feature {
 
     public static HashSet<onMenuItemStatusListener> menuStatuses = new HashSet<>();
 
+    public static synchronized void registerStatusListener(onMenuItemStatusListener listener) {
+        menuStatuses.removeIf(l -> l.getClass().getName().equals(listener.getClass().getName()));
+        menuStatuses.add(listener);
+    }
+
     public MenuStatusListener(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
 
     @Override
     public void doHook() throws Throwable {
-        menuStatuses.clear();
         var menuStatusMethod = Unobfuscator.loadMenuStatusMethod(classLoader);
         logDebug("MenuStatus method: " + menuStatusMethod.getName());
         var menuManagerClass = Unobfuscator.loadMenuManagerClass(classLoader);
@@ -75,6 +79,12 @@ public class MenuStatusListener extends Feature {
                 for (onMenuItemStatusListener menuStatus : menuStatuses) {
                     var menuItem = menuStatus.addMenu(menu, fMessage);
                     if (menuItem == null) continue;
+                    // Guard: remove menu items with empty/null titles to prevent blank entries
+                    CharSequence title = menuItem.getTitle();
+                    if (title == null || title.length() == 0) {
+                        menu.removeItem(menuItem.getItemId());
+                        continue;
+                    }
                     menuItem.setOnMenuItemClickListener(item -> {
                         menuStatus.onClick(item, fragmentInstance, fMessage);
                         return true;

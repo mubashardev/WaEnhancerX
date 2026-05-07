@@ -150,6 +150,16 @@ public class FeatureLoader {
         return "";
     }
 
+    /**
+     * Resolve a module string resource with a hardcoded fallback.
+     * Use this when the string is user-visible (menu titles, toasts) to
+     * guarantee non-empty text even if module resources fail to load.
+     */
+    public static String getModuleString(int resId, String fallback) {
+        String result = getModuleString(resId);
+        return (result != null && !result.isEmpty()) ? result : fallback;
+    }
+
     public static void start(@NonNull ClassLoader loader, @NonNull android.content.SharedPreferences pref, String sourceDir) {
         hostClassLoader = loader;
         Feature.DEBUG = pref.getBoolean("enablelogs", true);
