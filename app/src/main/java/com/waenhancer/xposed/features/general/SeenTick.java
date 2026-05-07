@@ -297,10 +297,14 @@ public class SeenTick extends Feature {
                             var listStatus = (List) listStatusField.get(fragmentInstance);
                             for (int i = 0; i < listStatus.size(); i++) {
                                 var obj = listStatus.get(i);
+                                if (obj == null) continue;
                                 if (!FMessageWpp.TYPE.isInstance(obj)) {
                                     var fieldFMessage = ReflectionUtils.getFieldByExtendType(obj.getClass(), FMessageWpp.TYPE);
-                                    obj = fieldFMessage.get(obj);
+                                    if (fieldFMessage != null) {
+                                        obj = fieldFMessage.get(obj);
+                                    }
                                 }
+                                if (obj == null) continue;
                                 var fMessage = new FMessageWpp(obj);
                                 var messageId = fMessage.getKey().messageID;
                                 if (!fMessage.getKey().isFromMe) {
@@ -340,6 +344,7 @@ public class SeenTick extends Feature {
                         fmessageObj = WppCore.getFMessageFromKey(keyObj);
                     }
                 }
+                if (fmessageObj == null) return;
                 FMessageWpp fMessage = new FMessageWpp(fmessageObj);
                 if (!fMessage.isViewOnce()) return;
                 Menu menu = (Menu) param.args[0];

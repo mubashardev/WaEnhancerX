@@ -25,6 +25,12 @@ import de.robv.android.xposed.XposedHelpers;
 
 public class MenuHome extends Feature {
 
+    public static final int MENU_ID_RESTART = 0x7EAE0001;
+    public static final int MENU_ID_DND = 0x7EAE0002;
+    public static final int MENU_ID_GHOST = 0x7EAE0003;
+    public static final int MENU_ID_FREEZE = 0x7EAE0004;
+    public static final int MENU_ID_OPEN_WAE = 0x7EAE0005;
+
     public static HashSet<HomeMenuItem> menuItems = new LinkedHashSet<>();
 
 
@@ -34,6 +40,7 @@ public class MenuHome extends Feature {
 
     @Override
     public void doHook() throws Throwable {
+        menuItems.clear();
         hookMenu();
         var action = prefs.getBoolean("buttonaction", true);
 
@@ -69,7 +76,8 @@ public class MenuHome extends Feature {
                     }
                 }
             } catch (Exception ignored) {}
-            var itemMenu = menu.add(0, 0, 9999, " " + title);
+            if (menu.findItem(MENU_ID_OPEN_WAE) != null) return;
+            var itemMenu = menu.add(0, MENU_ID_OPEN_WAE, 9999, " " + title);
             var iconDraw = DesignUtils.getDrawableByName("ic_settings");
             if (iconDraw != null) {
                 iconDraw.setTint(0xff8696a0);
@@ -116,7 +124,8 @@ public class MenuHome extends Feature {
                 }
             }
         } catch (Exception ignored) {}
-        var itemMenu = menu.add(0, 0, 0, ghostLabel);
+        if (menu.findItem(MENU_ID_GHOST) != null) return;
+        var itemMenu = menu.add(0, MENU_ID_GHOST, 0, ghostLabel);
 
         try {
             var iconDraw = XResManager.moduleResources.getDrawable(ghostmode ? R.drawable.ghost_enabled : R.drawable.ghost_disabled, null);
@@ -170,7 +179,8 @@ public class MenuHome extends Feature {
                 }
             }
         } catch (Exception ignored) {}
-        var itemMenu = menu.add(0, 0, 0, restartLabel);
+        if (menu.findItem(MENU_ID_RESTART) != null) return;
+        var itemMenu = menu.add(0, MENU_ID_RESTART, 0, restartLabel);
         if (iconDraw != null) itemMenu.setIcon(iconDraw);
         if (newSettings) {
             itemMenu.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
@@ -200,7 +210,8 @@ public class MenuHome extends Feature {
                 }
             }
         } catch (Exception ignored) {}
-        var item = menu.add(0, 0, 0, dndTitle);
+        if (menu.findItem(MENU_ID_DND) != null) return;
+        var item = menu.add(0, MENU_ID_DND, 0, dndTitle);
         try {
             var drawable = XResManager.moduleResources.getDrawable(dndmode ? R.drawable.airplane_enabled : R.drawable.airplane_disabled, null);
             if (drawable != null) {
@@ -251,7 +262,8 @@ public class MenuHome extends Feature {
 
         String flsTitle = "Freeze Last Seen";
         try { if (XResManager.moduleResources != null) flsTitle = com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.freezelastseen_title); } catch (Exception ignored) {}
-        MenuItem item = menu.add(0, 0, 0, flsTitle);
+        if (menu.findItem(MENU_ID_FREEZE) != null) return;
+        MenuItem item = menu.add(0, MENU_ID_FREEZE, 0, flsTitle);
         try {
             var drawable = XResManager.moduleResources.getDrawable(freezelastseen ? R.drawable.eye_disabled : R.drawable.eye_enabled, null);
             if (drawable != null) {

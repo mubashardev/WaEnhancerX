@@ -32,7 +32,7 @@ public class MenuStatusListener extends Feature {
 
     @Override
     public void doHook() throws Throwable {
-
+        menuStatuses.clear();
         var menuStatusMethod = Unobfuscator.loadMenuStatusMethod(classLoader);
         logDebug("MenuStatus method: " + menuStatusMethod.getName());
         var menuManagerClass = Unobfuscator.loadMenuManagerClass(classLoader);

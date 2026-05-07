@@ -97,7 +97,9 @@ public class LiteMode extends Feature {
     private void InsertDownloadFolderButton(Menu menu, Activity activity) {
         var entryPoint = getSafeString("open_wae", "1");
         if (!"1".equals(entryPoint)) return;
-        var itemMenu = menu.add(0, 0, 9999, "Download Folder");
+        int MENU_ID_DOWNLOAD_FOLDER = 0x7EAE0006;
+        if (menu.findItem(MENU_ID_DOWNLOAD_FOLDER) != null) return;
+        var itemMenu = menu.add(0, MENU_ID_DOWNLOAD_FOLDER, 9999, "Download Folder");
         var iconDraw = com.waenhancer.xposed.utils.DesignUtils.getDrawable(R.drawable.download);
         iconDraw.setTint(0xff8696a0);
         itemMenu.setIcon(iconDraw);
