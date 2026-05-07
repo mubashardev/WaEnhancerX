@@ -60,12 +60,15 @@ public class App extends Application {
         instance = this;
         
         // Initialize Firebase manually only in the standalone process to prevent SecurityException in host processes
+        // Delayed to prevent deadlocks with system_server (ActivityManager) during ContentProvider publishing
         if (Application.getProcessName().equals(BuildConfig.APPLICATION_ID)) {
-            try {
-                Class<?> firebaseAppClass = Class.forName("com.google.firebase.FirebaseApp");
-                firebaseAppClass.getMethod("initializeApp", Context.class).invoke(null, this);
-            } catch (Throwable ignored) {
-            }
+            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                try {
+                    Class<?> firebaseAppClass = Class.forName("com.google.firebase.FirebaseApp");
+                    firebaseAppClass.getMethod("initializeApp", Context.class).invoke(null, App.this);
+                } catch (Throwable ignored) {
+                }
+            }, 3000);
         }
         
         var sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
