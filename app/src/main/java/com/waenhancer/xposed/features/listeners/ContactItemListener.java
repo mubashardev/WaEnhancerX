@@ -20,6 +20,8 @@ public class ContactItemListener extends Feature {
 
     public static HashSet<OnContactItemListener> contactListeners = new HashSet<>();
 
+    private static java.lang.reflect.Field cachedViewField;
+
     public ContactItemListener(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
@@ -31,6 +33,8 @@ public class ContactItemListener extends Feature {
         var field1 = Unobfuscator.loadViewHolderField1(classLoader);
         logDebug(Unobfuscator.getFieldDescriptor(field1));
         var absViewHolderClass = Unobfuscator.loadAbsViewHolder(classLoader);
+        cachedViewField = ReflectionUtils.findFieldUsingFilter(absViewHolderClass, field -> field.getType() == View.class);
+        cachedViewField.setAccessible(true);
 
         XposedBridge.hookMethod(onChangeStatus, new XC_MethodHook() {
             @Override
@@ -38,8 +42,7 @@ public class ContactItemListener extends Feature {
                 var viewHolder = field1.get(param.thisObject);
                 var object = param.args[0];
                 var waContact = new WaContactWpp(object);
-                var viewField = ReflectionUtils.findFieldUsingFilter(absViewHolderClass, field -> field.getType() == View.class);
-                var view = (View) viewField.get(viewHolder);
+                var view = (View) cachedViewField.get(viewHolder);
                 var userJid = waContact.getUserJid();
                 if (userJid.isNull()) return;
 

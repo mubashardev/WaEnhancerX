@@ -54,6 +54,9 @@ import de.robv.android.xposed.XposedHelpers;
 
 public class SeenTick extends Feature {
 
+    private static java.lang.reflect.Field cachedStatusFMessageField;
+    private static java.lang.reflect.Field cachedViewButtonFMessageField;
+
     private final Set<FMessageWpp> statuses = ConcurrentHashMap.newKeySet();
     private static Object mWaJobManager;
     private static Class<?> mSendReadClass;
@@ -166,8 +169,11 @@ public class SeenTick extends Feature {
                 var list = (List<?>) XposedHelpers.getObjectField(param.args[0], fieldList.getName());
                 var object = list.get(position);
                 if (!FMessageWpp.TYPE.isInstance(object)) {
-                    var fmessageField = ReflectionUtils.findFieldUsingFilter(object.getClass(), field -> FMessageWpp.TYPE.isAssignableFrom(field.getType()));
-                    object = fmessageField.get(object);
+                    if (cachedStatusFMessageField == null) {
+                        cachedStatusFMessageField = ReflectionUtils.findFieldUsingFilter(object.getClass(), field -> FMessageWpp.TYPE.isAssignableFrom(field.getType()));
+                        cachedStatusFMessageField.setAccessible(true);
+                    }
+                    object = cachedStatusFMessageField.get(object);
                 }
                 var fMessage = new FMessageWpp(object);
                 statuses.clear();
@@ -201,9 +207,14 @@ public class SeenTick extends Feature {
                     var fMessageObj = ReflectionUtils.getObjectField(fMessageField, param.thisObject);
                     if (fMessageObj == null) {
                         var instance = ReflectionUtils.getObjectField(viewStatusField, param.thisObject);
-                        fMessageField = ReflectionUtils.findFieldUsingFilterIfExists(instance.getClass(), field1 -> FMessageWpp.TYPE.isAssignableFrom(field1.getType()));
-                        if (fMessageField != null) {
-                            fMessageObj = ReflectionUtils.getObjectField(fMessageField, instance);
+                        if (cachedViewButtonFMessageField == null) {
+                            cachedViewButtonFMessageField = ReflectionUtils.findFieldUsingFilterIfExists(instance.getClass(), field1 -> FMessageWpp.TYPE.isAssignableFrom(field1.getType()));
+                            if (cachedViewButtonFMessageField != null) {
+                                cachedViewButtonFMessageField.setAccessible(true);
+                            }
+                        }
+                        if (cachedViewButtonFMessageField != null) {
+                            fMessageObj = ReflectionUtils.getObjectField(cachedViewButtonFMessageField, instance);
                         }
                     }
                     if (fMessageObj == null) {

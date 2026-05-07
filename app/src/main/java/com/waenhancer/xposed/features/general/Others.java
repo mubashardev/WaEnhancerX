@@ -52,6 +52,8 @@ import okhttp3.OkHttpClient;
 
 public class Others extends Feature {
 
+    private static java.lang.reflect.Field cachedAbsViewField;
+
     public static HashMap<Integer, Boolean> propsBoolean = new HashMap<>();
     public static HashMap<Integer, Integer> propsInteger = new HashMap<>();
     private Properties properties;
@@ -488,14 +490,17 @@ public class Others extends Feature {
         var field1 = Unobfuscator.loadViewHolderField1(classLoader);
         logDebug(Unobfuscator.getFieldDescriptor(field1));
         var absViewHolderClass = Unobfuscator.loadAbsViewHolder(classLoader);
+        if (cachedAbsViewField == null) {
+            cachedAbsViewField = ReflectionUtils.findFieldUsingFilter(absViewHolderClass, field -> field.getType() == View.class);
+            cachedAbsViewField.setAccessible(true);
+        }
 
         XposedBridge.hookMethod(onChangeStatus, new XC_MethodHook() {
             @Override
             @SuppressLint("ResourceType")
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 var viewHolder = field1.get(param.thisObject);
-                var viewField = ReflectionUtils.findFieldUsingFilter(absViewHolderClass, field -> field.getType() == View.class);
-                var view = (View) viewField.get(viewHolder);
+                var view = (View) cachedAbsViewField.get(viewHolder);
                 if (!Objects.equals(animation, "default")) {
                     view.startAnimation(AnimationUtil.getAnimation(animation));
                 } else if (properties.containsKey("home_list_animation")) {
