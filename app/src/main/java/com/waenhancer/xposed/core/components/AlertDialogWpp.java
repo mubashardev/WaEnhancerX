@@ -476,6 +476,7 @@ public class AlertDialogWpp {
                 mainLayout.setBackground(bgDrawable);
                 mainLayout.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
                 mainLayout.setClipToOutline(true);
+                mainLayout.setElevation(8 * density);
                 
                 // Drag Handle
                 android.view.View dragHandle = new android.view.View(mContext);
@@ -622,7 +623,10 @@ public class AlertDialogWpp {
                     android.graphics.drawable.GradientDrawable posBg = new android.graphics.drawable.GradientDrawable();
                     posBg.setColor(accentColor);
                     posBg.setCornerRadius(12 * density);
-                    posButton.setBackground(posBg);
+                    
+                    android.content.res.ColorStateList posRippleColor = android.content.res.ColorStateList.valueOf(0x22FFFFFF);
+                    android.graphics.drawable.RippleDrawable posRipple = new android.graphics.drawable.RippleDrawable(posRippleColor, posBg, null);
+                    posButton.setBackground(posRipple);
                     posButton.setTextColor(android.graphics.Color.WHITE);
                     
                     posButton.setOnClickListener(v -> {
@@ -649,7 +653,10 @@ public class AlertDialogWpp {
                     negBg.setColor(android.graphics.Color.TRANSPARENT);
                     negBg.setStroke((int) (1 * density), secondaryTextColor & 0x44FFFFFF | 0x44000000);
                     negBg.setCornerRadius(12 * density);
-                    negButton.setBackground(negBg);
+                    
+                    android.content.res.ColorStateList negRippleColor = android.content.res.ColorStateList.valueOf(secondaryTextColor & 0x15FFFFFF | 0x15000000);
+                    android.graphics.drawable.RippleDrawable negRipple = new android.graphics.drawable.RippleDrawable(negRippleColor, negBg, null);
+                    negButton.setBackground(negRipple);
                     negButton.setTextColor(primaryTextColor);
                     
                     negButton.setOnClickListener(v -> {
