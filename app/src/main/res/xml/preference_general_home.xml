@@ -61,6 +61,12 @@
             app:title="@string/verbose_logs" />
 
         <rikka.material.preference.MaterialSwitchPreference
+            app:defaultValue="true"
+            app:key="show_hook_toast"
+            app:summary="@string/show_hook_toast_sum"
+            app:title="@string/show_hook_toast" />
+
+        <rikka.material.preference.MaterialSwitchPreference
             app:defaultValue="false"
             app:key="bypass_version_check"
             app:summary="@string/disable_version_check_sum"

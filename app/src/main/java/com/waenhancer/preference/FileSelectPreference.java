@@ -160,9 +160,17 @@ public class FileSelectPreference extends Preference implements Preference.OnPre
         FilePicker.setOnFilePickedListener(this);
 
         if (mineTypes.length == 1 && mineTypes[0].contains("image")) {
+            if (FilePicker.imageCapture == null) {
+                Toast.makeText(getContext(), "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+                return true;
+            }
             FilePicker.setOnUriPickedListener(this);
             FilePicker.imageCapture.launch(new PickVisualMediaRequest.Builder()
                     .setMediaType(new ActivityResultContracts.PickVisualMedia.SingleMimeType(mineTypes[0])).build());
+            return true;
+        }
+        if (FilePicker.fileCapture == null) {
+            Toast.makeText(getContext(), "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
             return true;
         }
         FilePicker.fileCapture.launch(mineTypes);

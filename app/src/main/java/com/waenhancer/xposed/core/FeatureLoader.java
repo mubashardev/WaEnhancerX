@@ -97,6 +97,7 @@ import com.waenhancer.xposed.utils.DesignUtils;
 import com.waenhancer.xposed.utils.ReflectionUtils;
 import com.waenhancer.xposed.utils.ResId;
 import com.waenhancer.xposed.utils.Utils;
+import com.waenhancer.xposed.utils.XResManager;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -111,6 +112,9 @@ import java.util.concurrent.TimeUnit;
 import de.robv.android.xposed.XC_MethodHook;
 import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.Toast;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 import lombok.Getter;
@@ -118,6 +122,12 @@ import lombok.Setter;
 
 public class FeatureLoader {
     public static Application mApp;
+    public static ClassLoader hostClassLoader;
+    private static Toast hookingToast;
+    private static String loadedTimeStr;
+    private static boolean needsSnackbar = false;
+    private static final java.util.concurrent.CountDownLatch loadLatch = new java.util.concurrent.CountDownLatch(1);
+    private static volatile boolean isLoaded = false;
 
     public final static String PACKAGE_WPP = "com.whatsapp";
     public final static String PACKAGE_BUSINESS = "com.whatsapp.w4b";
@@ -126,8 +136,32 @@ public class FeatureLoader {
     private static List<String> supportedVersions;
     private static String currentVersion;
 
-    public static void start(@NonNull ClassLoader loader, @NonNull android.content.SharedPreferences pref, String sourceDir) {
+    /**
+     * Safely resolve a module string resource. Uses moduleResources directly
+     * to avoid passing module IDs through the host's Resources which lacks
+     * the module's resource table.
+     */
+    public static String getModuleString(int resId) {
+        try {
+            if (XResManager.moduleResources != null) {
+                return XResManager.moduleResources.getString(resId);
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
 
+    /**
+     * Resolve a module string resource with a hardcoded fallback.
+     * Use this when the string is user-visible (menu titles, toasts) to
+     * guarantee non-empty text even if module resources fail to load.
+     */
+    public static String getModuleString(int resId, String fallback) {
+        String result = getModuleString(resId);
+        return (result != null && !result.isEmpty()) ? result : fallback;
+    }
+
+    public static void start(@NonNull ClassLoader loader, @NonNull android.content.SharedPreferences pref, String sourceDir) {
+        hostClassLoader = loader;
         Feature.DEBUG = pref.getBoolean("enablelogs", true);
         Utils.xprefs = pref;
 
@@ -136,6 +170,15 @@ public class FeatureLoader {
                     @SuppressWarnings("deprecation")
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                         mApp = (Application) param.args[0];
+                        
+                        // Show initial feedback immediately (if enabled)
+                        if (pref.getBoolean("show_hook_toast", true)) {
+                            new Handler(Looper.getMainLooper()).post(() -> {
+                                hookingToast = Toast.makeText(mApp, "Hooking in to WhatsApp cache. Please wait.", Toast.LENGTH_LONG);
+                                hookingToast.show();
+                            });
+                        }
+
                         String processName = Application.getProcessName();
                         XposedBridge.log("[WAE] callApplicationOnCreate for: " + mApp.getPackageName() + " (process: " + processName + ")");
 
@@ -184,44 +227,31 @@ public class FeatureLoader {
                             XposedBridge.log("[WAE] Failed to scan host prefs: " + e.getMessage());
                         }
 
-                        supportedVersions = Arrays.asList(mApp.getResources()
-                                .getStringArray(Objects.equals(mApp.getPackageName(), FeatureLoader.PACKAGE_WPP)
-                                        ? ResId.array.supported_versions_wpp
-                                        : ResId.array.supported_versions_business));
+                        int versionsArrayId = Objects.equals(mApp.getPackageName(), FeatureLoader.PACKAGE_WPP)
+                                ? com.waenhancer.R.array.supported_versions_wpp
+                                : com.waenhancer.R.array.supported_versions_business;
+                        supportedVersions = Arrays.asList(
+                                XResManager.moduleResources.getStringArray(versionsArrayId));
                         mApp.registerActivityLifecycleCallbacks(new WaCallback());
                         registerReceivers();
                         try {
-                            var timemillis = System.currentTimeMillis();
-                            Unobfuscator.loadLibrary(mApp);
-                            if (!Unobfuscator.initWithPath(sourceDir)) {
-                                XposedBridge.log("Can't init dexkit");
-                                return;
-                            }
-                            UnobfuscatorCache.init(mApp);
-                            SharedPreferencesWrapper.hookInit(mApp.getClassLoader());
-                            ReflectionUtils.initCache(mApp);
-                            XposedBridge.log("[WAE] Supported versions list: " + supportedVersions);
                             boolean isSupported = supportedVersions.stream()
-                                    .anyMatch(s -> packageInfo.versionName.startsWith(s.replace(".xx", "")));
+                                    .anyMatch(s -> {
+                                        String target = s.endsWith(".xx") ? s.replace(".xx", ".") : s + ".";
+                                        return (packageInfo.versionName + ".").startsWith(target);
+                                    });
                             XposedBridge.log("[WAE] Version verification result for " + packageInfo.versionName + ": isSupported=" + isSupported);
                             if (!isSupported) {
                                 disableExpirationVersion(mApp.getClassLoader());
-                                if (!pref.getBoolean("bypass_version_check", false)) {
-                                    String sb = "Unsupported version: " +
-                                            packageInfo.versionName +
-                                            "\n" +
-                                            "Only the function of ignoring the expiration of the WhatsApp version has been applied!";
-                                    throw new Exception(sb);
-                                }
+                                String sb = "Unsupported version: " +
+                                        packageInfo.versionName +
+                                        "\n" +
+                                        "Only the function of ignoring the expiration of the WhatsApp version has been applied!";
+                                throw new Exception(sb);
                             }
-                            XposedBridge.log("[WAE] Initializing components and plugins using ProviderSharedPreferences...");
-                            initComponents(loader, providerPrefs);
-                            plugins(loader, providerPrefs, packageInfo.versionName);
-                            sendEnabledBroadcast(mApp);
-                            // XposedHelpers.setStaticIntField(XposedHelpers.findClass("com.whatsapp.infra.logging.Log",
-                            // loader), "level", 5);
-                            var timemillis2 = System.currentTimeMillis() - timemillis;
-                            XposedBridge.log("[WAE] Loaded Hooks in " + timemillis2 + "ms");
+                            
+                            // Execute loading synchronously to ensure hooks are applied before app continues
+                            load(loader, providerPrefs, packageInfo, sourceDir);
                         } catch (Throwable e) {
                             XposedBridge.log(e);
                             var error = new ErrorItem();
@@ -234,6 +264,9 @@ public class FeatureLoader {
                                             && !s.getClassName().startsWith("com.android"))
                                     .map(StackTraceElement::toString).toArray()));
                             list.add(error);
+                        } finally {
+                            isLoaded = true;
+                            loadLatch.countDown();
                         }
                     }
                 });
@@ -251,24 +284,32 @@ public class FeatureLoader {
 
                             try {
                                 new AlertDialogWpp(activity)
-                                        .setTitle(activity.getString(ResId.string.error_detected))
-                                        .setMessage(activity.getString(ResId.string.version_error) + msg
+                                        .asBottomSheet()
+                                        .setTitle(getModuleString(ResId.string.error_detected, "Error Detected"))
+                                        .setMessage(getModuleString(ResId.string.version_error, "Version Compatibility Error\n") + msg
                                                 + "\n\nCurrent Version: " + currentVersion + "\nSupported Versions:\n"
                                                 + String.join("\n", supportedVersions))
-                                        .setPositiveButton(activity.getString(ResId.string.copy_to_clipboard),
+                                        .setPositiveButton(getModuleString(ResId.string.copy_to_clipboard, "Copy to Clipboard"),
                                                 (dialog, which) -> {
                                                     var clipboard = (ClipboardManager) mApp
                                                             .getSystemService(Context.CLIPBOARD_SERVICE);
                                                     ClipData clip = ClipData.newPlainText("text", String.join("\n",
                                                             list.stream().map(ErrorItem::toString).toArray(String[]::new)));
                                                     clipboard.setPrimaryClip(clip);
-                                                    Toast.makeText(mApp, ResId.string.copied_to_clipboard,
+                                                    Toast.makeText(mApp, getModuleString(ResId.string.copied_to_clipboard, "Copied to Clipboard"),
                                                             Toast.LENGTH_SHORT).show();
                                                     dialog.dismiss();
                                                 })
-                                        .setNegativeButton(activity.getString(ResId.string.check_for_latest_version),
+                                        .setNegativeButton(getModuleString(ResId.string.check_for_latest_version, "Check for Latest Version"),
                                                 (dialog, which) -> {
-                                                    CompletableFuture.runAsync(new UpdateChecker(activity, true));
+                                                    try {
+                                                        Intent intent = new Intent();
+                                                        intent.setComponent(new android.content.ComponentName("com.waenhancer", "com.waenhancer.activities.ChangelogActivity"));
+                                                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                                        activity.startActivity(intent);
+                                                    } catch (Throwable t) {
+                                                        XposedBridge.log("[WAE] Failed to open ChangelogActivity: " + t.getMessage());
+                                                    }
                                                     dialog.dismiss();
                                                 })
                                         .show();
@@ -295,6 +336,41 @@ public class FeatureLoader {
         });
     }
 
+    private static void load(ClassLoader loader, SharedPreferences providerPrefs, PackageInfo packageInfo, String sourceDir) {
+        try {
+            var timemillis = System.currentTimeMillis();
+            
+            Unobfuscator.loadLibrary(mApp);
+            if (!Unobfuscator.initWithPath(sourceDir)) {
+                XposedBridge.log("Can't init dexkit");
+                return;
+            }
+            UnobfuscatorCache.init(mApp);
+            SharedPreferencesWrapper.hookInit(mApp.getClassLoader());
+
+            XposedBridge.log("[WAE] Initializing components and plugins using ProviderSharedPreferences...");
+            ResId.initLocal(mApp);
+            initComponents(loader, providerPrefs);
+            plugins(loader, providerPrefs, packageInfo.versionName);
+            sendEnabledBroadcast(mApp);
+            
+            var timemillis2 = System.currentTimeMillis() - timemillis;
+            loadedTimeStr = String.format(java.util.Locale.US, "%.2fs", timemillis2 / 1000.0);
+            XposedBridge.log("[WAE] Loaded Hooks in " + loadedTimeStr);
+            
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (hookingToast != null) {
+                    hookingToast.cancel();
+                }
+                needsSnackbar = true;
+                triggerLoadedFeedback();
+            });
+        } catch (Throwable e) {
+            XposedBridge.log("[WAE] Error in background load: " + e.getMessage());
+            XposedBridge.log(e);
+        }
+    }
+
     private static void initComponents(ClassLoader loader, android.content.SharedPreferences pref) throws Exception {
         FMessageWpp.initialize(loader);
         WppCore.Initialize(loader, pref);
@@ -308,7 +384,72 @@ public class FeatureLoader {
 
         WppCore.addListenerActivity((activity, state) -> {
             if (state == WppCore.ActivityChangeState.ChangeType.RESUMED) {
-                checkUpdate(activity);
+                
+                // Refresh preferences to pick up live changes from the manager app
+                // Wrap in post() to ensure we don't interfere with the immediate activity resume cycle
+                activity.getWindow().getDecorView().post(() -> {
+                    try {
+                        XposedBridge.log("[WAE] Activity RESUMED: " + activity.getClass().getSimpleName());
+                        if (pref instanceof de.robv.android.xposed.XSharedPreferences) {
+                            ((de.robv.android.xposed.XSharedPreferences) pref).reload();
+                        } else if (pref instanceof com.waenhancer.xposed.bridge.client.ProviderSharedPreferences) {
+                            ((com.waenhancer.xposed.bridge.client.ProviderSharedPreferences) pref).reload();
+                        }
+                        
+                        boolean needRestartPref = pref.getBoolean("need_restart", false);
+                        boolean needRestartGlobal = WppCore.getPrivBoolean("need_restart", false);
+                        XposedBridge.log("[WAE] Restart Check on RESUMED - Pref: " + needRestartPref + ", Global: " + needRestartGlobal);
+                        
+                        if (needRestartPref || needRestartGlobal) {
+                            String msg = getModuleString(ResId.string.restart_wpp);
+                            String btnRestart = getModuleString(ResId.string.restart_whatsapp);
+                            String btnCancel = getModuleString(android.R.string.cancel);
+                            
+                            // Enhance message with changed items if possible
+                            try {
+                                java.util.Set<String> changes = pref.getStringSet("pending_restart_changes", null);
+                                if (changes != null && !changes.isEmpty()) {
+                                    StringBuilder sb = new StringBuilder();
+                                    if (msg.isEmpty()) msg = "WhatsApp needs to be restarted to apply the following changes:";
+                                    else sb.append(msg).append("\n\n");
+                                    
+                                    sb.append("Changes:\n");
+                                    for (String change : changes) {
+                                        sb.append("• ").append(change).append("\n");
+                                    }
+                                    msg = sb.toString().trim();
+                                }
+                            } catch (Exception ignored) {}
+
+                            if (msg.isEmpty()) msg = "WhatsApp needs to be restarted to apply your recent changes in WaEnhancer. Would you like to restart now?";
+                            if (btnRestart.isEmpty()) btnRestart = "Restart WhatsApp";
+                            if (btnCancel.isEmpty()) btnCancel = "Cancel";
+
+                            XposedBridge.log("[WAE] Restart dialog - Msg: '" + msg + "', Btn: '" + btnRestart + "'");
+                            
+                            new AlertDialogWpp(activity)
+                                    .setTitle("Restart Required")
+                                    .setMessage(msg)
+                                    .setPositiveButton(btnRestart, (dialog, which) -> {
+                                        XposedBridge.log("[WAE] User clicked RESTART WHATSAPP");
+                                        pref.edit().putBoolean("need_restart", false)
+                                            .remove("pending_restart_changes").apply();
+                                        WppCore.setPrivBooleanSync("need_restart", false);
+                                        Utils.doRestart(activity);
+                                    })
+                                    .setNegativeButton(btnCancel, (dialog, which) -> {
+                                        pref.edit().putBoolean("need_restart", false)
+                                            .remove("pending_restart_changes").apply();
+                                        WppCore.setPrivBooleanSync("need_restart", false);
+                                    })
+                                    .show();
+                        } else {
+                            XposedBridge.log("[WAE] No restart needed (flags are false)");
+                        }
+                    } catch (Throwable e) {
+                        XposedBridge.log("[WAE] Error during post-resume pref reload: " + e.getMessage());
+                    }
+                });
 
                 if (pref.getBoolean("update_check", true)) {
                     if (!hasCheckedThisSession[0]) {
@@ -320,28 +461,14 @@ public class FeatureLoader {
                             } catch (Throwable e) {
                                 XposedBridge.log("[WAE] Error launching UpdateChecker: " + e.getMessage());
                             }
-                        }, 2000);
+                        }, 5000);
                     }
                 }
             }
         });
     }
 
-    private static void checkUpdate(@NonNull Activity activity) {
-        if (WppCore.getPrivBoolean("need_restart", false)) {
-            WppCore.setPrivBooleanSync("need_restart", false);
-            try {
-                new AlertDialogWpp(activity).setMessage(activity.getString(ResId.string.restart_wpp))
-                        .setPositiveButton(activity.getString(ResId.string.yes), (dialog, which) -> {
-                            if (!Utils.doRestart(activity))
-                                Toast.makeText(activity, "Unable to rebooting activity", Toast.LENGTH_SHORT).show();
-                        })
-                        .setNegativeButton(activity.getString(ResId.string.no), null)
-                        .show();
-            } catch (Throwable ignored) {
-            }
-        }
-    }
+
 
     private static void registerReceivers() {
         // Reboot receiver
@@ -350,7 +477,7 @@ public class FeatureLoader {
             public void onReceive(Context context, Intent intent) {
                 if (context.getPackageName().equals(intent.getStringExtra("PKG"))) {
                     var appName = context.getPackageManager().getApplicationLabel(context.getApplicationInfo());
-                    Toast.makeText(context, context.getString(ResId.string.rebooting) + " " + appName + "...",
+                    Toast.makeText(context, getModuleString(ResId.string.rebooting) + " " + appName + "...",
                             Toast.LENGTH_SHORT).show();
                     if (!Utils.doRestart(context))
                         Toast.makeText(context, "Unable to rebooting " + appName, Toast.LENGTH_SHORT).show();
@@ -370,17 +497,20 @@ public class FeatureLoader {
         ContextCompat.registerReceiver(mApp, wppReceiver, new IntentFilter(BuildConfig.APPLICATION_ID + ".CHECK_WPP"),
                 ContextCompat.RECEIVER_EXPORTED);
 
-        // Dialog receiver restart
+        // Dialog receiver restart (Fail-safe)
         BroadcastReceiver restartManualReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
+                XposedBridge.log("[WAE] MANUAL_RESTART broadcast received");
                 WppCore.setPrivBooleanSync("need_restart", true);
+                XposedBridge.log("[WAE] Global need_restart set to true via broadcast");
             }
         };
         ContextCompat.registerReceiver(mApp, restartManualReceiver,
                 new IntentFilter(BuildConfig.APPLICATION_ID + ".MANUAL_RESTART"), ContextCompat.RECEIVER_EXPORTED);
 
-        // Clear Cache receiver
+
+
         BroadcastReceiver clearCacheReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
@@ -406,6 +536,56 @@ public class FeatureLoader {
             context.sendBroadcast(wppIntent);
         } catch (Exception ignored) {
         }
+    }
+
+    public static void triggerLoadedFeedback() {
+        if (!needsSnackbar || loadedTimeStr == null || WppCore.mCurrentActivity == null) return;
+        
+        // Only show feedback if the user has enabled hook toasts
+        if (Utils.xprefs != null && !Utils.xprefs.getBoolean("show_hook_toast", true)) {
+            needsSnackbar = false;
+            return;
+        }
+        
+        // If still loading in background, we might want to wait or show a dialog
+        // But for now, we only trigger if needsSnackbar is true (which is set after background load)
+        needsSnackbar = false;
+        Utils.showSnackbar(WppCore.mCurrentActivity, "Hooks loaded in " + loadedTimeStr);
+    }
+
+    public static void checkLoading(Activity activity) {
+        if (isLoaded || activity == null) return;
+        
+        // Gate checkLoading behind the show_hook_toast preference
+        if (Utils.xprefs != null && !Utils.xprefs.getBoolean("show_hook_toast", true)) return;
+        
+        new Handler(Looper.getMainLooper()).post(() -> {
+            try {
+                // If still not loaded, show a simple non-cancelable dialog
+                if (isLoaded) return;
+                
+                var dialog = new AlertDialogWpp(activity)
+                        .setTitle("WaEnhancer")
+                        .setMessage("Hooking in to WhatsApp cache. Please wait...")
+                        .setCancelable(false)
+                        .show();
+                
+                // Auto-dismiss when loaded
+                new Thread(() -> {
+                    try {
+                        loadLatch.await();
+                        new Handler(Looper.getMainLooper()).post(() -> {
+                            try {
+                                dialog.dismiss();
+                                triggerLoadedFeedback();
+                            } catch (Throwable ignored) {}
+                        });
+                    } catch (Throwable ignored) {}
+                }).start();
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] Failed to show loading dialog: " + t.getMessage());
+            }
+        });
     }
 
     private static void plugins(@NonNull ClassLoader loader, @NonNull android.content.SharedPreferences pref,

@@ -29,7 +29,7 @@ import androidx.core.app.NotificationManagerCompat;
 import androidx.documentfile.provider.DocumentFile;
 
 import com.waenhancer.App;
-import com.waenhancer.WppXposed;
+
 import com.waenhancer.xposed.core.FeatureLoader;
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.components.FMessageWpp;
@@ -54,6 +54,7 @@ import java.util.regex.Pattern;
 import android.content.SharedPreferences;
 import de.robv.android.xposed.XSharedPreferences;
 import de.robv.android.xposed.XposedBridge;
+import de.robv.android.xposed.XposedHelpers;
 
 public class Utils {
 
@@ -161,7 +162,7 @@ public class Utils {
                 throw new Exception("Folder not found!");
             return folder + "/WhatsApp/" + name;
         }
-        String folder = WppXposed.getPref().getString("download_local", "/sdcard/Download");
+        String folder = XPrefManager.getPref(getApplication()).getString("download_local", "/sdcard/Download");
         var waFolder = new File(folder, "WhatsApp");
         var filePath = new File(waFolder, name);
         try {
@@ -246,6 +247,33 @@ public class Utils {
         }
     }
 
+
+    public static void showSnackbar(Activity activity, String message) {
+        if (activity == null || message == null) return;
+        new Handler(Looper.getMainLooper()).post(() -> {
+            try {
+                var view = activity.findViewById(android.R.id.content);
+                if (view != null) {
+                    Class<?> snackbarClass = null;
+                    ClassLoader loader = FeatureLoader.hostClassLoader != null ? FeatureLoader.hostClassLoader : activity.getClassLoader();
+                    
+                    try {
+                        snackbarClass = XposedHelpers.findClass("com.google.android.material.snackbar.Snackbar", loader);
+                    } catch (Throwable t) {
+                        snackbarClass = XposedHelpers.findClass("com.google.android.material.snackbar.Snackbar", activity.getClassLoader());
+                    }
+                    
+                    if (snackbarClass != null) {
+                        Object snackbar = XposedHelpers.callStaticMethod(snackbarClass, "make", view, message, 0); // 0 = LENGTH_LONG
+                        XposedHelpers.callMethod(snackbar, "show");
+                    }
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] Failed to show Snackbar: " + t.getMessage());
+                showToast(message, Toast.LENGTH_SHORT);
+            }
+        });
+    }
 
     public static void showToast(String message, int length) {
         if (Looper.myLooper() == Looper.getMainLooper()) {

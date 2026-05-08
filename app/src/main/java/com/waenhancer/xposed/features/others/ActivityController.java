@@ -18,7 +18,7 @@ import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.components.FMessageWpp;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.utils.ReflectionUtils;
-import com.waenhancer.xposed.utils.ResId;
+import com.waenhancer.R;
 
 import org.luckypray.dexkit.query.enums.StringMatchType;
 
@@ -35,6 +35,20 @@ import de.robv.android.xposed.XposedHelpers;
 public class ActivityController extends Feature {
 
     private static String Key;
+    private static String pickingKey;
+    private static Class<?> statusDistributionClass;
+
+    public static void setPickingKey(String key) {
+        pickingKey = key;
+    }
+
+    public static String getPickingKey() {
+        return pickingKey;
+    }
+
+    public static Class<?> getStatusDistributionClass() {
+        return statusDistributionClass;
+    }
 
     public ActivityController(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
@@ -46,6 +60,7 @@ public class ActivityController extends Feature {
         var clazz = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith,
                 ".SettingsNotifications");
         Class<?> statusDistribution = Unobfuscator.loadStatusDistributionClass(classLoader);
+        statusDistributionClass = statusDistribution;
 
         XposedHelpers.findAndHookMethod(Activity.class, "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
@@ -74,7 +89,7 @@ public class ActivityController extends Feature {
                                     method -> method.getParameterCount() == 1
                                             && method.getParameterTypes()[0] == CharSequence.class);
                             ReflectionUtils.callMethod(methods[1], toolbar,
-                                    activity.getString(ResId.string.select_contacts));
+                                    com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.select_contacts));
                         }
                     }
                 });
@@ -83,14 +98,26 @@ public class ActivityController extends Feature {
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        if (clazz != param.thisObject.getClass())
-                            return;
                         var activity = (Activity) param.thisObject;
                         var id = (int) param.args[0];
                         Intent intent = (Intent) param.args[2];
+
+                        boolean isMyClass = (clazz == activity.getClass());
+
                         if (id == ContactPickerPreference.REQUEST_CONTACT_PICKER && intent != null) {
-                            processResultContact(intent, activity);
-                        } else if (id == com.waenhancer.xposed.features.general.VideoNoteAttachment.REQUEST_PICK_VIDEO_NOTE
+                            if (isMyClass && activity.getIntent() != null && activity.getIntent().getBooleanExtra("contact_mode", false)) {
+                                processResultContact(intent, activity);
+                                activity.finish();
+                            } else {
+                                processEmbeddedResultContact(intent, activity);
+                            }
+                            return;
+                        }
+
+                        if (!isMyClass)
+                            return;
+
+                        if (id == com.waenhancer.xposed.features.general.VideoNoteAttachment.REQUEST_PICK_VIDEO_NOTE
                                 && intent != null) {
                             var uriStr = intent.getDataString();
                             Intent intent2 = new Intent();
@@ -111,6 +138,25 @@ public class ActivityController extends Feature {
                     }
                 });
 
+    }
+
+    private static void processEmbeddedResultContact(Intent intent, Activity activity) {
+        try {
+            var instance = intent.getExtras().get("status_distribution");
+            var listContactsField = ReflectionUtils.findFieldUsingFilter(instance.getClass(),
+                    field -> field.getType() == List.class);
+            var listContacts = (List) ReflectionUtils.getObjectField(listContactsField, instance);
+            var contacts = new ArrayList<String>();
+            for (Object contactUserJid : listContacts) {
+                var rawContacts = new FMessageWpp.UserJid(contactUserJid).getPhoneRawString();
+                contacts.add(rawContacts);
+            }
+            if (pickingKey != null) {
+                ContactPickerPreference.updatePreferenceValue(pickingKey, contacts);
+            }
+        } catch (Exception e) {
+            de.robv.android.xposed.XposedBridge.log("[WaEnhancer] Error processing embedded contact picker result: " + e.getMessage());
+        }
     }
 
     private static void processResultContact(Intent intent, Activity activity) {

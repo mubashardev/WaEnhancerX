@@ -39,11 +39,96 @@ public class ContactPickerPreference extends Preference implements Preference.On
         init(context, attrs);
     }
 
+    public static final java.util.Map<String, java.lang.ref.WeakReference<ContactPickerPreference>> activePreferences = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public static void updatePreferenceValue(String key, ArrayList<String> contacts) {
+        java.lang.ref.WeakReference<ContactPickerPreference> ref = activePreferences.get(key);
+        if (ref != null) {
+            ContactPickerPreference pref = ref.get();
+            if (pref != null) {
+                pref.setContacts(contacts);
+            }
+        }
+    }
+
+    public void setContacts(ArrayList<String> contacts) {
+        mContacts = contacts;
+        var prefs = getSharedPreferences() != null
+                ? getSharedPreferences()
+                : PreferenceManager.getDefaultSharedPreferences(getContext());
+        prefs.edit().putString(getKey(), String.valueOf(mContacts)).apply();
+        if (mContacts != null && !mContacts.isEmpty()) {
+            setSummary(String.format(String.valueOf(summaryOn), mContacts.size()));
+        } else {
+            setSummary(String.valueOf(summaryOff));
+        }
+    }
+
+    private Activity getActivityContext() {
+        Context context = getContext();
+        while (context instanceof android.content.ContextWrapper) {
+            if (context instanceof Activity) {
+                return (Activity) context;
+            }
+            context = ((android.content.ContextWrapper) context).getBaseContext();
+        }
+        return null;
+    }
+
     @Override
     public boolean onPreferenceClick(@NonNull Preference preference) {
-        if (!(getContext() instanceof Activity activity)) {
+        Activity activity = getActivityContext();
+        if (activity == null) {
             return true;
         }
+
+        if (activity.getPackageName().contains("whatsapp")) {
+            try {
+                Class<?> statusDistributionClass = com.waenhancer.xposed.features.others.ActivityController.getStatusDistributionClass();
+                if (statusDistributionClass != null) {
+                    Intent intent = new Intent();
+                    intent.setClassName(activity.getPackageName(),
+                            "com.whatsapp.status.audienceselector.StatusTemporalRecipientsActivity");
+                    intent.putExtra("contact_mode", true);
+                    intent.putExtra("is_black_list", false);
+
+                    ArrayList<Object> listContacts = new ArrayList<>();
+                    if (mContacts != null) {
+                        for (String contact : mContacts) {
+                            try {
+                                String jidStr = contact;
+                                if (!jidStr.contains("@")) {
+                                    jidStr = jidStr + "@s.whatsapp.net";
+                                }
+                                Object jid = com.waenhancer.xposed.core.WppCore.createUserJid(jidStr);
+                                if (jid != null) {
+                                    listContacts.add(jid);
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                    }
+
+                    java.lang.reflect.Constructor<?> constructor = com.waenhancer.xposed.utils.ReflectionUtils.findConstructorUsingFilter(statusDistributionClass,
+                            c -> c.getParameterCount() > 5);
+                    Object[] params = com.waenhancer.xposed.utils.ReflectionUtils.initArray(constructor.getParameterTypes());
+                    var lists = com.waenhancer.xposed.utils.ReflectionUtils.findClassesOfType(constructor.getParameterTypes(), java.util.List.class);
+                    for (int i = 0; i < lists.size(); i++) {
+                        params[lists.get(i).first] = new ArrayList<>();
+                    }
+                    params[lists.get(0).first] = listContacts;
+                    android.os.Parcelable instance = (android.os.Parcelable) constructor.newInstance(params);
+                    intent.putExtra("status_distribution", instance);
+
+                    com.waenhancer.xposed.features.others.ActivityController.setPickingKey(getKey());
+
+                    activity.startActivityForResult(intent, REQUEST_CONTACT_PICKER);
+                    return true;
+                }
+            } catch (Exception e) {
+                de.robv.android.xposed.XposedBridge.log("[WaEnhancer] Failed to launch WhatsApp contact picker: " + e.getMessage());
+            }
+        }
+
         Intent intent = new Intent(getContext(), ContactPickerActivity.class);
         intent.putExtra(ContactPickerActivity.EXTRA_KEY, getKey());
         intent.putStringArrayListExtra(ContactPickerActivity.EXTRA_SELECTED_CONTACTS,
@@ -69,6 +154,10 @@ public class ContactPickerPreference extends Preference implements Preference.On
             setSummary(String.format(String.valueOf(summaryOn), mContacts.size()));
         } else {
             setSummary(String.valueOf(summaryOff));
+        }
+
+        if (getKey() != null) {
+            activePreferences.put(getKey(), new java.lang.ref.WeakReference<>(this));
         }
     }
 

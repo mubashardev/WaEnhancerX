@@ -62,6 +62,16 @@
                     android:textAppearance="?attr/textAppearanceLabelMedium"
                     android:textColor="?attr/colorPrimary"
                     android:textStyle="bold" />
+
+                <ImageView
+                    android:id="@+id/iv_expand_arrow"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginStart="8dp"
+                    android:src="@drawable/ic_chevron_right"
+                    android:rotation="90"
+                    app:tint="?attr/colorPrimary"
+                    android:contentDescription="Expand or collapse details" />
             </LinearLayout>
         </LinearLayout>
 
@@ -74,28 +84,67 @@
             android:textAppearance="?attr/textAppearanceLabelLarge"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
-        <com.google.android.material.divider.MaterialDivider
+        <LinearLayout
+            android:id="@+id/layout_collapsible_changelog"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp" />
+            android:orientation="vertical"
+            android:visibility="gone">
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/tv_changelog_body"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurface"
-            android:lineSpacingExtra="4dp" />
+            <com.google.android.material.divider.MaterialDivider
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_update"
-            style="@style/Widget.Material3.Button.TonalButton"
+            <LinearLayout
+                android:id="@+id/changelog_items_container"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginBottom="8dp" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/tv_changelog_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textColor="?attr/colorOnSurface"
+                android:lineSpacingExtra="4dp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="@string/update"
-            android:visibility="gone"
-            app:icon="@drawable/ic_round_update_24" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="16dp">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_update"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/update"
+                android:visibility="gone"
+                app:icon="@drawable/ic_round_update_24" />
+
+            <View
+                android:id="@+id/btn_update_spacer"
+                android:layout_width="12dp"
+                android:layout_height="0dp"
+                android:visibility="gone" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_github"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="Open in GitHub"
+                app:icon="@drawable/ic_github"
+                app:iconTint="?attr/colorPrimary" />
+        </LinearLayout>
 
     </LinearLayout>
 

@@ -3,6 +3,8 @@ package com.waenhancer.xposed.features.general;
 import static com.waenhancer.xposed.core.FeatureLoader.disableExpirationVersion;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.content.Intent;
 import android.os.BaseBundle;
 import android.os.Message;
 import android.os.PowerManager;
@@ -23,8 +25,9 @@ import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.features.listeners.ConversationItemListener;
 import com.waenhancer.xposed.utils.AnimationUtil;
 import com.waenhancer.xposed.utils.ReflectionUtils;
-import com.waenhancer.xposed.utils.ResId;
+import com.waenhancer.R;
 import com.waenhancer.xposed.utils.Utils;
+import com.waenhancer.xposed.features.others.MenuHome;
 
 import org.json.JSONObject;
 import org.luckypray.dexkit.query.enums.StringMatchType;
@@ -48,6 +51,8 @@ import de.robv.android.xposed.XposedHelpers;
 import okhttp3.OkHttpClient;
 
 public class Others extends Feature {
+
+    private static java.lang.reflect.Field cachedAbsViewField;
 
     public static HashMap<Integer, Boolean> propsBoolean = new HashMap<>();
     public static HashMap<Integer, Integer> propsInteger = new HashMap<>();
@@ -262,6 +267,8 @@ public class Others extends Feature {
             disableHomeFilters();
         }
 
+
+
     }
 
     private void disableHomeFilters() throws Exception {
@@ -372,8 +379,8 @@ public class Others extends Feature {
         var contact = WppCore.getContactName(userJid);
         var number = userJid.getPhoneNumber();
         if (!TextUtils.isEmpty(contact))
-            sb.append(String.format(Utils.getApplication().getString(ResId.string.contact_s), contact)).append("\n");
-        sb.append(String.format(Utils.getApplication().getString(ResId.string.phone_number_s), number)).append("\n");
+            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.contact_s, "Contact: %s"), contact)).append("\n");
+        sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.phone_number_s, "Number: +%s"), number)).append("\n");
         var ip = (String) XposedHelpers.getObjectField(wamCall, "callPeerIpStr");
         if (ip != null) {
             var client = new OkHttpClient.Builder().build();
@@ -383,15 +390,15 @@ public class Others extends Feature {
             var json = new JSONObject(content);
             var country = json.getString("country");
             var city = json.getString("city");
-            sb.append(String.format(Utils.getApplication().getString(ResId.string.country_s), country)).append("\n").append(String.format(Utils.getApplication().getString(ResId.string.city_s), city)).append("\n").append(String.format(Utils.getApplication().getString(ResId.string.ip_s), ip)).append("\n");
+            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.country_s, "Country: %s"), country)).append("\n").append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.city_s, "City: %s"), city)).append("\n").append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.ip_s, "IP: %s"), ip)).append("\n");
         }
         var platform = (String) XposedHelpers.getObjectField(wamCall, "callPeerPlatform");
         if (platform != null)
-            sb.append(String.format(Utils.getApplication().getString(ResId.string.platform_s), platform)).append("\n");
+            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.platform_s, "Platform: %s"), platform)).append("\n");
         var wppVersion = (String) XposedHelpers.getObjectField(wamCall, "callPeerAppVersion");
         if (wppVersion != null)
-            sb.append(String.format(Utils.getApplication().getString(ResId.string.wpp_version_s), wppVersion)).append("\n");
-        Utils.showNotification(Utils.getApplication().getString(ResId.string.call_information), sb.toString());
+            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.wpp_version_s, "WhatsApp Version: %s"), wppVersion)).append("\n");
+        Utils.showNotification(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.call_information, "Call Information"), sb.toString());
     }
 
     private void alwaysOnline() throws Exception {
@@ -483,14 +490,17 @@ public class Others extends Feature {
         var field1 = Unobfuscator.loadViewHolderField1(classLoader);
         logDebug(Unobfuscator.getFieldDescriptor(field1));
         var absViewHolderClass = Unobfuscator.loadAbsViewHolder(classLoader);
+        if (cachedAbsViewField == null) {
+            cachedAbsViewField = ReflectionUtils.findFieldUsingFilter(absViewHolderClass, field -> field.getType() == View.class);
+            cachedAbsViewField.setAccessible(true);
+        }
 
         XposedBridge.hookMethod(onChangeStatus, new XC_MethodHook() {
             @Override
             @SuppressLint("ResourceType")
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 var viewHolder = field1.get(param.thisObject);
-                var viewField = ReflectionUtils.findFieldUsingFilter(absViewHolderClass, field -> field.getType() == View.class);
-                var view = (View) viewField.get(viewHolder);
+                var view = (View) cachedAbsViewField.get(viewHolder);
                 if (!Objects.equals(animation, "default")) {
                     view.startAnimation(AnimationUtil.getAnimation(animation));
                 } else if (properties.containsKey("home_list_animation")) {
@@ -590,7 +600,7 @@ public class Others extends Feature {
 
     private void filterItems(String filterItems) {
         var itens = filterItems.split("\n");
-        var idsFilter = new ArrayList<Integer>();
+        var idsFilter = new java.util.HashSet<Integer>();
         for (String item : itens) {
             var id = Utils.getID(item, "id");
             if (id > 0) {
@@ -624,7 +634,7 @@ public class Others extends Feature {
                 var name = WppCore.getContactName(userjid);
                 name = TextUtils.isEmpty(name) ? userjid.getPhoneNumber() : name;
                 if (showOnline)
-                    Utils.showToast(String.format(Utils.getApplication().getString(ResId.string.toast_online), name), Toast.LENGTH_SHORT);
+                    Utils.showToast(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.toast_online), name), Toast.LENGTH_SHORT);
                 Tasker.sendTaskerEvent(name, WppCore.stripJID(jid), "contact_online");
             }
         });

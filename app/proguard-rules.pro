@@ -43,11 +43,22 @@
 # Support for Xposed libraries
 -keep class de.robv.android.xposed.** { *; }
 -dontwarn de.robv.android.xposed.**
+
 -keep class io.github.libxposed.** { *; }
 
 # Bouncy Castle
 -keep class org.bouncycastle.** { *; }
 -dontwarn org.bouncycastle.**
+
+# Support for jStyleParser — both the API (css) and the impl (csskit) packages must be kept.
+# CSSFactory uses Class.forName("cz.vutbr.web.csskit.RuleFactoryImpl") at runtime, so R8
+# must not rename or remove any class in the csskit package.
+-keep class cz.vutbr.web.css.** { *; }
+-keep class cz.vutbr.web.csskit.** { *; }
+-keep class cz.vutbr.web.domassign.** { *; }
+-keep class org.w3c.css.sac.** { *; }
+-dontwarn cz.vutbr.web.**
+-dontwarn org.w3c.css.sac.**
 
 # OkHttp/Okio
 -keep class okhttp3.** { *; }

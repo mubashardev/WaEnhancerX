@@ -65,7 +65,7 @@ public class ChangelogActivity extends BaseActivity {
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
-        toolbar.setNavigationOnClickListener(v -> navigateToHome());
+        toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
         recyclerView = findViewById(R.id.changelog_recycler);
         // shimmerFrameLayout = findViewById(R.id.shimmer_view_container);
@@ -90,59 +90,49 @@ public class ChangelogActivity extends BaseActivity {
 
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         adapter = new ChangelogAdapter(getCurrentVersion());
+        // Load initial state
+        downgradesEnabled = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("downgrades_enabled", false);
+        adapter.setDowngradesEnabled(downgradesEnabled);
+        
         recyclerView.setAdapter(adapter);
 
         fetchChangelog();
     }
 
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        MenuItem item = menu.add(0, 1001, 0, R.string.enable_downgrades);
-        item.setCheckable(true);
-        item.setChecked(downgradesEnabled);
-        item.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
-        return true;
+    protected void onResume() {
+        super.onResume();
+        // Refresh settings in case they were changed in UpdateSettingsActivity
+        boolean newDowngradeState = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("downgrades_enabled", false);
+        if (newDowngradeState != downgradesEnabled) {
+            downgradesEnabled = newDowngradeState;
+            adapter.setDowngradesEnabled(downgradesEnabled);
+        }
     }
 
+    // @Override
+    // public void onBackPressed() {
+    //     navigateToHome();
+    // }
+
     @Override
-    public void onBackPressed() {
-        navigateToHome();
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.menu_changelog, menu);
+        return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(@NonNull android.view.MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
-            navigateToHome();
+            // navigateToHome();
+            onBackPressed();
             return true;
         }
-        if (item.getItemId() == 1001) {
-            toggleDowngrades(item);
+        if (item.getItemId() == R.id.action_update_settings) {
+            startActivity(new Intent(this, UpdateSettingsActivity.class));
             return true;
         }
         return super.onOptionsItemSelected(item);
-    }
-
-    private void toggleDowngrades(MenuItem item) {
-        if (!item.isChecked()) {
-            // Request root
-            new Thread(() -> {
-                boolean granted = com.waenhancer.utils.LogManager.hasRootAccess();
-                runOnUiThread(() -> {
-                    if (granted) {
-                        downgradesEnabled = true;
-                        item.setChecked(true);
-                        adapter.setDowngradesEnabled(true);
-                    } else {
-                        item.setChecked(false);
-                        Toast.makeText(this, R.string.root_required_downgrade, Toast.LENGTH_LONG).show();
-                    }
-                });
-            }).start();
-        } else {
-            downgradesEnabled = false;
-            item.setChecked(false);
-            adapter.setDowngradesEnabled(false);
-        }
     }
 
     private void navigateToHome() {
@@ -247,6 +237,7 @@ public class ChangelogActivity extends BaseActivity {
         private final String currentVersion;
         private boolean downgradesEnabled = false;
         private Markwon markwon;
+        private final java.util.Set<String> expandedTags = new java.util.HashSet<>();
 
         public ChangelogAdapter(String currentVersion) {
             this.currentVersion = currentVersion;
@@ -273,7 +264,7 @@ public class ChangelogActivity extends BaseActivity {
 
         @Override
         public void onBindViewHolder(@NonNull ChangelogViewHolder holder, int position) {
-            holder.bind(releases.get(position), downgradesEnabled);
+            holder.bind(releases.get(position), downgradesEnabled, expandedTags);
         }
 
         @Override
@@ -289,6 +280,11 @@ public class ChangelogActivity extends BaseActivity {
         private final com.google.android.material.textview.MaterialTextView tvInstalledBadge;
         private final com.google.android.material.textview.MaterialTextView tvBody;
         private final com.google.android.material.button.MaterialButton btnUpdate;
+        private final com.google.android.material.button.MaterialButton btnGithub;
+        private final android.view.View btnUpdateSpacer;
+        private final android.widget.ImageView ivExpandArrow;
+        private final android.view.View layoutCollapsible;
+        private final android.widget.LinearLayout changelogItemsContainer;
         private final Markwon markwon;
         private final String currentVersion;
 
@@ -302,13 +298,92 @@ public class ChangelogActivity extends BaseActivity {
             tvInstalledBadge = itemView.findViewById(R.id.tv_installed_badge);
             tvBody = itemView.findViewById(R.id.tv_changelog_body);
             btnUpdate = itemView.findViewById(R.id.btn_update);
+            btnGithub = itemView.findViewById(R.id.btn_github);
+            btnUpdateSpacer = itemView.findViewById(R.id.btn_update_spacer);
+            ivExpandArrow = itemView.findViewById(R.id.iv_expand_arrow);
+            layoutCollapsible = itemView.findViewById(R.id.layout_collapsible_changelog);
+            changelogItemsContainer = itemView.findViewById(R.id.changelog_items_container);
+        }
+
+        private static class ParsedCategory {
+            final String name;
+            final List<String> items = new java.util.ArrayList<>();
+
+            ParsedCategory(String name) {
+                this.name = name;
+            }
+        }
+
+        private static List<ParsedCategory> parseBody(String body) {
+            List<ParsedCategory> categories = new java.util.ArrayList<>();
+            if (body == null || body.trim().isEmpty()) {
+                return categories;
+            }
+            String[] lines = body.split("\n");
+            ParsedCategory currentCategory = null;
+            for (String line : lines) {
+                line = line.trim();
+                if (line.isEmpty()) {
+                    continue;
+                }
+
+                // Check if the line is a category header, e.g., [Added], [Fixes], [Improvements]
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    String catName = line.substring(1, line.length() - 1).trim();
+                    currentCategory = findOrCreateCategory(categories, catName);
+                    continue;
+                }
+
+                String text = line;
+                if (text.startsWith("-") || text.startsWith("*")) {
+                    text = text.substring(1).trim();
+                }
+
+                String itemCategoryName = (currentCategory != null) ? currentCategory.name : "Added";
+                if (text.startsWith("[")) {
+                    int closeBracket = text.indexOf(']');
+                    if (closeBracket > 0) {
+                        itemCategoryName = text.substring(1, closeBracket).trim();
+                        text = text.substring(closeBracket + 1).trim();
+                    }
+                }
+
+                if (text.startsWith("-") || text.startsWith("*")) {
+                    text = text.substring(1).trim();
+                }
+
+                if (!text.isEmpty()) {
+                    ParsedCategory cat = findOrCreateCategory(categories, itemCategoryName);
+                    cat.items.add(text);
+                }
+            }
+            return categories;
+        }
+
+        private static ParsedCategory findOrCreateCategory(List<ParsedCategory> categories, String name) {
+            for (ParsedCategory cat : categories) {
+                if (cat.name.equalsIgnoreCase(name)) {
+                    return cat;
+                }
+            }
+            ParsedCategory newCat = new ParsedCategory(name);
+            categories.add(newCat);
+            return newCat;
+        }
+
+        private static int dpToPx(android.content.Context context, int dp) {
+            return (int) android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_DIP,
+                dp,
+                context.getResources().getDisplayMetrics()
+            );
         }
 
         public void bind(JSONObject release) {
-            bind(release, false);
+            bind(release, false, new java.util.HashSet<>());
         }
 
-        public void bind(JSONObject release, boolean downgradesEnabled) {
+        public void bind(JSONObject release, boolean downgradesEnabled, java.util.Set<String> expandedTags) {
             String tagName = release.optString("tag_name", "Unknown");
             String publishedAt = release.optString("published_at", "");
             String body = release.optString("body", "No description available.");
@@ -323,29 +398,89 @@ public class ChangelogActivity extends BaseActivity {
 
             tvVersion.setText(tagName);
             tvDate.setText(formatDate(publishedAt));
-            tvBadge.setVisibility(View.VISIBLE);
-            tvBadge.setText(isBeta ? "BETA" : "STABLE");
+            tvBadge.setVisibility(View.GONE); // No need of mentioning Stable/Beta chip on each item
             
-            android.util.TypedValue typedValue = new android.util.TypedValue();
-            android.content.res.Resources.Theme theme = itemView.getContext().getTheme();
-            
-            if (isBeta) {
-                // For beta, try to find a tertiary-like color or default to accent
-                if (!itemView.getContext().getTheme().resolveAttribute(android.R.attr.colorAccent, typedValue, true)) {
-                    typedValue.data = itemView.getContext().getColor(R.color.md_theme_light_tertiary);
-                }
-                tvBadge.setTextColor(typedValue.data);
-                tvBadge.setBackgroundResource(R.drawable.installed_badge_background);
-            } else {
-                itemView.getContext().getTheme().resolveAttribute(android.R.attr.colorPrimary, typedValue, true);
-                tvBadge.setTextColor(typedValue.data);
-                tvBadge.setBackgroundResource(R.drawable.version_badge_background);
-            }
             tvInstalledBadge.setVisibility(isInstalled ? View.VISIBLE : View.GONE);
-            markwon.setMarkdown(tvBody, body.trim());
+
+            // Handle Expand/Collapse State
+            boolean isExpanded = expandedTags.contains(tagName);
+            layoutCollapsible.setVisibility(isExpanded ? View.VISIBLE : View.GONE);
+            ivExpandArrow.setRotation(isExpanded ? 270 : 90);
+
+            itemView.setOnClickListener(v -> {
+                boolean nextExpanded = !expandedTags.contains(tagName);
+                if (nextExpanded) {
+                    expandedTags.add(tagName);
+                    layoutCollapsible.setVisibility(View.VISIBLE);
+                    ivExpandArrow.animate().rotation(270).setDuration(200).start();
+                } else {
+                    expandedTags.remove(tagName);
+                    layoutCollapsible.setVisibility(View.GONE);
+                    ivExpandArrow.animate().rotation(90).setDuration(200).start();
+                }
+            });
+
+            // Populate Changelog Items
+            changelogItemsContainer.removeAllViews();
+            List<ParsedCategory> parsedCategories = parseBody(body);
+            if (parsedCategories.isEmpty()) {
+                tvBody.setVisibility(View.VISIBLE);
+                markwon.setMarkdown(tvBody, body.trim());
+            } else {
+                tvBody.setVisibility(View.GONE);
+                android.view.LayoutInflater inflater = android.view.LayoutInflater.from(itemView.getContext());
+                for (ParsedCategory category : parsedCategories) {
+                    // 1. Inflate Category Header Row
+                    android.view.View headerRow = inflater.inflate(R.layout.item_changelog_row, changelogItemsContainer, false);
+                    com.google.android.material.textview.MaterialTextView tvCatBadge = headerRow.findViewById(R.id.tv_item_badge);
+                    com.google.android.material.textview.MaterialTextView tvCatText = headerRow.findViewById(R.id.tv_item_text);
+                    
+                    tvCatText.setVisibility(View.GONE);
+                    tvCatBadge.setText(category.name.toUpperCase(java.util.Locale.US));
+                    
+                    // Style the category badge based on category name
+                    android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+                    gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                    gd.setCornerRadius(dpToPx(itemView.getContext(), 6));
+                    
+                    int bgColor;
+                    if ("added".equalsIgnoreCase(category.name)) {
+                        bgColor = 0xFF10B981; // Emerald Green
+                    } else if ("improvements".equalsIgnoreCase(category.name)) {
+                        bgColor = 0xFF3B82F6; // Vibrant Blue
+                    } else if ("fixes".equalsIgnoreCase(category.name)) {
+                        bgColor = 0xFFEF4444; // Coral Red
+                    } else {
+                        bgColor = 0xFF64748B; // Slate Gray
+                    }
+                    gd.setColor(bgColor);
+                    tvCatBadge.setBackground(gd);
+                    tvCatBadge.setTextColor(0xFFFFFFFF);
+                    
+                    changelogItemsContainer.addView(headerRow);
+                    
+                    // 2. Inflate Category Bullet Point Rows
+                    for (String itemText : category.items) {
+                        android.view.View itemRow = inflater.inflate(R.layout.item_changelog_row, changelogItemsContainer, false);
+                        com.google.android.material.textview.MaterialTextView tvItemBadge = itemRow.findViewById(R.id.tv_item_badge);
+                        com.google.android.material.textview.MaterialTextView tvItemText = itemRow.findViewById(R.id.tv_item_text);
+                        
+                        tvItemBadge.setVisibility(View.GONE);
+                        tvItemText.setText("•  " + itemText);
+                        
+                        android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvItemText.getLayoutParams();
+                        lp.leftMargin = dpToPx(itemView.getContext(), 16);
+                        tvItemText.setLayoutParams(lp);
+                        
+                        changelogItemsContainer.addView(itemRow);
+                    }
+                }
+            }
 
             boolean showUpdateButton = isNewer || (downgradesEnabled && !isInstalled);
             btnUpdate.setVisibility(showUpdateButton ? View.VISIBLE : View.GONE);
+            btnUpdateSpacer.setVisibility(showUpdateButton ? View.VISIBLE : View.GONE);
+            
             if (showUpdateButton && !isNewer) {
                 btnUpdate.setText(R.string.downgrade);
             } else {
@@ -378,6 +513,16 @@ public class ChangelogActivity extends BaseActivity {
                         context.startActivity(intent);
                     } catch (Exception ignored) {}
                 }
+            });
+
+            String htmlUrl = release.optString("html_url", "https://github.com/mubashardev/WaEnhancerX/releases");
+            btnGithub.setOnClickListener(v -> {
+                try {
+                    android.content.Context context = v.getContext();
+                    android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_VIEW, 
+                            android.net.Uri.parse(htmlUrl));
+                    context.startActivity(intent);
+                } catch (Exception ignored) {}
             });
         }
 

@@ -1,7 +1,9 @@
 package com.waenhancer.activities;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -314,7 +316,28 @@ public class MainActivity extends BaseActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    public static boolean isXposedEnabled() {
+    public static boolean isXposedFrameworkPresent(Context context) {
+        // 1. Check if we are already hooked (direct detection)
+        try {
+            Class.forName("de.robv.android.xposed.XposedBridge", false, MainActivity.class.getClassLoader());
+            return true;
+        } catch (Throwable ignored) {}
+
+        // 2. Check for known Manager apps (LSPosed, EdXposed, etc.)
+        // This allows detection even if the current app is not in scope.
+        if (context == null) return false;
+        PackageManager pm = context.getPackageManager();
+        String[] managers = {
+            "org.lsposed.manager", 
+            "org.meowcat.edxposed.manager", 
+            "de.robv.android.xposed.installer"
+        };
+        for (String pkg : managers) {
+            try {
+                pm.getPackageInfo(pkg, 0);
+                return true;
+            } catch (Throwable ignored) {}
+        }
         return false;
     }
 

@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Central catalog of all searchable features in the WaEnhancer app.
+ * Central catalog of all searchable features in the WaEnhancerX app.
  * This class builds and maintains a complete index of all features from
  * preference XMLs.
  */
@@ -105,6 +105,14 @@ public class FeatureCatalog {
                                 SearchableFeature.FragmentType.GENERAL,
                                 "general_home",
                                 Arrays.asList("logs", "debug", "verbose")));
+
+                catalog.add(new SearchableFeature("show_hook_toast",
+                                context.getString(R.string.show_hook_toast),
+                                context.getString(R.string.show_hook_toast_sum),
+                                SearchableFeature.Category.GENERAL_HOME,
+                                SearchableFeature.FragmentType.GENERAL,
+                                "general_home",
+                                Arrays.asList("toast", "hook", "loading", "snackbar", "please wait")));
 
                 catalog.add(new SearchableFeature("bypass_version_check",
                                 context.getString(R.string.disable_version_check),

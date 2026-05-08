@@ -14,7 +14,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import com.waenhancer.xposed.utils.DesignUtils;
+import com.waenhancer.xposed.utils.ThemeUtils;
 
 public final class SettingsViewBuilder {
 
@@ -36,33 +36,12 @@ public final class SettingsViewBuilder {
     }
 
     public static Host buildHost(Context context) {
-        boolean isDark = DesignUtils.isNightMode(context);
-        int colorPrimary = getHostColor(context, "colorPrimary",
-                isDark ? 0xff00a884 : 0xff008069);
-        int windowBg = getHostColor(context, "windowBackground",
-                isDark ? 0xff121b22 : 0xffffffff);
-
-        // Try to resolve from theme attributes directly
-        try {
-            android.util.TypedValue tv = new android.util.TypedValue();
-            android.content.res.Resources.Theme theme = context.getTheme();
-            
-            // Resolve primary
-            int primaryAttr = context.getResources().getIdentifier("colorPrimary", "attr", context.getPackageName());
-            if (primaryAttr != 0 && theme.resolveAttribute(primaryAttr, tv, true)) {
-                colorPrimary = tv.data;
-            }
-            
-            // Resolve background
-            int bgAttr = android.R.attr.windowBackground;
-            if (theme.resolveAttribute(bgAttr, tv, true)) {
-                if (tv.type >= android.util.TypedValue.TYPE_FIRST_COLOR_INT && tv.type <= android.util.TypedValue.TYPE_LAST_COLOR_INT) {
-                    windowBg = tv.data;
-                }
-            }
-        } catch (Throwable ignored) {}
-        int toolbarTextColor = getHostColor(context, "toolbar_primary_text_color", 0xffffffff);
-        int actionBarHeight = getHostDimen(context, "action_bar_size", 56);
+        boolean isDark = ThemeUtils.isNightMode(context);
+        int colorPrimary = ThemeUtils.getThemeAccentColor(context);
+        int windowBg = ThemeUtils.getThemeBackgroundColor(context, isDark);
+        int cardBg = ThemeUtils.getThemeCardColor(context, isDark);
+        int textColor = ThemeUtils.getThemeTextColorPrimary(context, isDark);
+        int textSecondary = ThemeUtils.getThemeTextColorSecondary(context, isDark);
 
         LinearLayout root = new LinearLayout(context);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -71,51 +50,82 @@ public final class SettingsViewBuilder {
                 ViewGroup.LayoutParams.MATCH_PARENT));
         root.setBackgroundColor(windowBg);
 
+        // Header Section
+        LinearLayout header = new LinearLayout(context);
+        header.setOrientation(LinearLayout.VERTICAL);
+        header.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        header.setPadding(dp(context, 20), dp(context, 12), dp(context, 20), dp(context, 20));
+        
+        // Toolbar with Back Button
         LinearLayout toolbar = new LinearLayout(context);
         toolbar.setOrientation(LinearLayout.HORIZONTAL);
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
         toolbar.setLayoutParams(new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                actionBarHeight));
-        toolbar.setBackgroundColor(colorPrimary);
-        toolbar.setPadding(dp(context, 4), 0, dp(context, 16), 0);
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            toolbar.setElevation(dp(context, 4));
-        }
+                dp(context, 56)));
 
         ImageView backButton = new ImageView(context);
-        backButton.setLayoutParams(new LinearLayout.LayoutParams(dp(context, 48), dp(context, 48)));
+        backButton.setLayoutParams(new LinearLayout.LayoutParams(dp(context, 40), dp(context, 40)));
         backButton.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        backButton.setPadding(dp(context, 12), dp(context, 12), dp(context, 12), dp(context, 12));
-        backButton.setImageDrawable(resolveBackDrawable(context, toolbarTextColor));
+        backButton.setPadding(dp(context, 8), dp(context, 8), dp(context, 8), dp(context, 8));
+        backButton.setImageDrawable(resolveBackDrawable(context, textColor));
+        
         TypedValue rippleValue = new TypedValue();
         context.getTheme().resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, rippleValue, true);
         try {
             backButton.setBackgroundResource(rippleValue.resourceId);
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) {}
 
-        TextView titleView = new TextView(context);
-        titleView.setLayoutParams(new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f));
-        titleView.setTextColor(toolbarTextColor);
-        titleView.setTextSize(20);
-        titleView.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
-        titleView.setText("WaEnhancer");
-
+        // Spacer to push things right if needed, but here we want back button on left
         toolbar.addView(backButton);
-        toolbar.addView(titleView);
-        root.addView(toolbar);
+        
+        // Add "Manager" badge style text if we want, or just the logo
+        header.addView(toolbar);
 
+        // Large Title - Modern look
+        TextView titleView = new TextView(context);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        titleParams.setMargins(dp(context, 4), dp(context, 8), 0, 0);
+        titleView.setLayoutParams(titleParams);
+        titleView.setTextColor(textColor);
+        titleView.setTextSize(32); // Slightly larger
+        titleView.setLetterSpacing(-0.02f);
+        titleView.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
+        titleView.setText("Settings");
+
+        TextView subtitleView = new TextView(context);
+        LinearLayout.LayoutParams subtitleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        subtitleParams.setMargins(dp(context, 4), dp(context, 2), 0, 0);
+        subtitleView.setLayoutParams(subtitleParams);
+        subtitleView.setTextColor(textSecondary);
+        subtitleView.setTextSize(14);
+        subtitleView.setText("WaEnhancer X Premium");
+        subtitleView.setAlpha(0.7f);
+
+        header.addView(titleView);
+        header.addView(subtitleView);
+        root.addView(header);
+
+        // Settings Container
         FrameLayout container = new FrameLayout(context);
-        container.setId(View.generateViewId());
-        container.setLayoutParams(new LinearLayout.LayoutParams(
+        container.setId(com.waenhancer.R.id.container);
+        LinearLayout.LayoutParams containerParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 0,
-                1f));
-        container.setBackgroundColor(windowBg);
+                1f);
+        container.setLayoutParams(containerParams);
+        
+        // Add a subtle top radius to the settings container if in dark mode for "sheet" look
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            container.setElevation(dp(context, 2));
+        }
+        
         root.addView(container);
 
         return new Host(root, container, backButton, titleView);

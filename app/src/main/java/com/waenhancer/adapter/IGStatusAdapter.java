@@ -31,7 +31,7 @@ import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.core.devkit.UnobfuscatorCache;
 import com.waenhancer.xposed.utils.DesignUtils;
 import com.waenhancer.xposed.utils.ReflectionUtils;
-import com.waenhancer.xposed.utils.ResId;
+import com.waenhancer.R;
 import com.waenhancer.xposed.utils.Utils;
 
 import org.luckypray.dexkit.query.enums.StringMatchType;
@@ -64,75 +64,69 @@ public class IGStatusAdapter extends ArrayAdapter {
             holder = (IGStatusViewHolder) convertView.getTag();
         }
         if (item == null) {
-            holder.setInfo("my_status");
-            holder.addButton.setVisibility(View.VISIBLE);
+            holder.setInfo("my_status", position);
+            if (hasOwnActiveStatus()) {
+                holder.addButton.setVisibility(View.GONE);
+            } else {
+                holder.addButton.setVisibility(View.VISIBLE);
+            }
         } else if (statusInfoClazz.isInstance(item)) {
             if (item instanceof View v) {
                 v.setClickable(false);
             }
-            holder.setInfo(item);
+            holder.setInfo(item, position);
             holder.addButton.setVisibility(View.GONE);
         }
         convertView.setOnClickListener(v -> {
             if (holder.myStatus) {
-                var activity = WppCore.getCurrentActivity();
-                var dialog = WppCore.createBottomDialog(activity);
-                var tabdialog = new TabDialogContent(activity);
-                tabdialog.setTitle(activity.getString(ResId.string.select_status_type));
-                tabdialog.addTab(UnobfuscatorCache.getInstance().getString("mystatus"), DesignUtils.getIconByName("ic_status", true), (view) -> {
+                if (hasOwnActiveStatus()) {
                     try {
-                        var clazz = Unobfuscator.getClassByName("MyStatusesActivity", getContext().getClassLoader());
+                        var clazz = Unobfuscator.getClassByName("StatusPlaybackActivity", getContext().getClassLoader());
                         var intent = new Intent(WppCore.getCurrentActivity(), clazz);
+                        intent.putExtra("jid", "status@broadcast");
                         WppCore.getCurrentActivity().startActivity(intent);
                     } catch (Exception e) {
-                        Utils.showToast(e.getMessage(), 1);
-                    }
-                    dialog.dismissDialog();
-                });
-
-                // Botão da camera
-                var iconCamera = DesignUtils.getDrawable(ResId.drawable.camera);
-                DesignUtils.coloredDrawable(iconCamera, DesignUtils.isNightMode() ? Color.WHITE : Color.BLACK);
-                tabdialog.addTab(activity.getString(ResId.string.open_camera), iconCamera, (view) -> {
-                    try {
-                        Intent intent = new Intent();
-                        var clazz = Unobfuscator.getClassByName("CameraActivity", getContext().getClassLoader());
-                        intent.setClassName(activity.getPackageName(), clazz.getName());
-                        intent.putExtra("jid", "status@broadcast");
-                        intent.putExtra("camera_origin", 4);
-                        intent.putExtra("is_coming_from_chat", false);
-                        intent.putExtra("media_sharing_user_journey_origin", 32);
-                        intent.putExtra("media_sharing_user_journey_start_target", 9);
-                        intent.putExtra("media_sharing_user_journey_chat_type", 4);
-                        activity.startActivity(intent);
-                    } catch (Exception e) {
-                        Utils.showToast(e.getMessage(), 1);
-                    }
-                    dialog.dismissDialog();
-                });
-                // Botão de editar
-                var iconEdit = DesignUtils.getDrawable(ResId.drawable.edit2);
-                DesignUtils.coloredDrawable(iconEdit, DesignUtils.isNightMode() ? Color.WHITE : Color.BLACK);
-
-                tabdialog.addTab(activity.getString(ResId.string.edit_text), iconEdit, (view) -> {
-                    try {
-                        Intent intent = new Intent();
-                        Class clazz;
                         try {
-                            clazz = Unobfuscator.getClassByName("TextStatusComposerActivity", activity.getClassLoader());
-                        } catch (Exception ignored) {
-                            clazz = Unobfuscator.getClassByName("ConsolidatedStatusComposerActivity", getContext().getClassLoader());
-                            intent.putExtra("status_composer_mode", 2);
+                            var clazz = Unobfuscator.getClassByName("MyStatusesActivity", getContext().getClassLoader());
+                            var intent = new Intent(WppCore.getCurrentActivity(), clazz);
+                            WppCore.getCurrentActivity().startActivity(intent);
+                        } catch (Exception ex) {
+                            Utils.showToast(ex.getMessage(), 1);
                         }
-                        intent.setClassName(activity.getPackageName(), clazz.getName());
-                        activity.startActivity(intent);
+                    }
+                } else {
+                    try {
+                        var decorView = WppCore.getCurrentActivity().getWindow().getDecorView();
+                        boolean clicked = clickViewByContentDescription(decorView, "updates");
+                        if (!clicked) {
+                            clicked = clickViewByContentDescription(decorView, "status");
+                        }
+                        if (!clicked) {
+                            var bnv = findBottomNavigationMenuView(decorView);
+                            if (bnv instanceof android.view.ViewGroup) {
+                                android.view.ViewGroup vg = (android.view.ViewGroup) bnv;
+                                if (vg.getChildCount() > 1) {
+                                    vg.getChildAt(1).performClick();
+                                    clicked = true;
+                                }
+                            }
+                        }
+                        if (!clicked) {
+                            var viewPager = findViewByClassName(decorView, "ViewPager");
+                            if (viewPager != null) {
+                                XposedHelpers.callMethod(viewPager, "setCurrentItem", 1, true);
+                                clicked = true;
+                            }
+                        }
+                        if (!clicked) {
+                            var clazz = Unobfuscator.getClassByName("MyStatusesActivity", getContext().getClassLoader());
+                            var intent = new Intent(WppCore.getCurrentActivity(), clazz);
+                            WppCore.getCurrentActivity().startActivity(intent);
+                        }
                     } catch (Exception e) {
                         Utils.showToast(e.getMessage(), 1);
                     }
-                    dialog.dismissDialog();
-                });
-                dialog.setContentView(tabdialog);
-                dialog.showDialog();
+                }
                 return;
             }
             try {
@@ -164,35 +158,132 @@ public class IGStatusAdapter extends ArrayAdapter {
         public ImageView igStatusContactPhoto;
         public RelativeLayout addButton;
         public TextView igStatusContactName;
+        public RelativeLayout internalContainer;
         public boolean myStatus;
         private FMessageWpp.UserJid userJid;
 
-        public void setInfo(Object item) {
+        private static Object findJidObject(Object obj, int depth) {
+            if (obj == null || depth < 0) return null;
+            Class<?> clazz = obj.getClass();
+            String name = clazz.getName();
+            if (name.endsWith(".Jid") || name.endsWith(".UserJid") || name.endsWith(".PhoneUserJid")) {
+                return obj;
+            }
+            if (name.startsWith("java.") || name.startsWith("android.") || name.startsWith("androidx.")) {
+                return null;
+            }
+            for (java.lang.reflect.Field f : clazz.getDeclaredFields()) {
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(obj);
+                    if (val == null) continue;
+                    Object found = findJidObject(val, depth - 1);
+                    if (found != null) return found;
+                } catch (Exception ignored) {}
+            }
+            return null;
+        }
+
+        public void setInfo(Object item, int position) {
 
             if (Objects.equals(item, "my_status")) {
                 myStatus = true;
                 igStatusContactName.setText(UnobfuscatorCache.getInstance().getString("mystatus"));
-                var profile = WppCore.getMyPhoto();
-                if (profile == null)
-                    profile = Utils.getApplication().getDrawable(ResId.drawable.user_foreground);
+                Drawable profile = null;
+                try {
+                    var myUserJid = WppCore.getMyUserJid();
+                    if (myUserJid != null) {
+                        var waContact = WaContactWpp.getWaContactFromJid(myUserJid);
+                        if (waContact != null && waContact.getProfilePhoto() != null) {
+                            profile = BitmapDrawable.createFromPath(waContact.getProfilePhoto().getAbsolutePath());
+                        }
+                    }
+                } catch (Exception ignored) {}
+                if (profile == null) {
+                    profile = WppCore.getMyPhoto();
+                }
+                if (profile == null) {
+                    String contactName = null;
+                    try {
+                        var myUserJid = WppCore.getMyUserJid();
+                        if (myUserJid != null) {
+                            var waContact = WaContactWpp.getWaContactFromJid(myUserJid);
+                            if (waContact != null) {
+                                contactName = waContact.getDisplayName();
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                    if (TextUtils.isEmpty(contactName)) {
+                        contactName = "O";
+                    }
+                    profile = getLetterAvatar(contactName);
+                }
+                if (profile == null) {
+                    profile = DesignUtils.getDrawableByName("avatar_contact");
+                }
+                if (profile == null) {
+                    profile = Utils.getApplication().getDrawable(R.drawable.user_foreground);
+                }
                 igStatusContactPhoto.setImageDrawable(profile);
-                setCountStatus(0, 0);
+                if (hasOwnActiveStatus()) {
+                    setCountStatus(1, 1);
+                } else {
+                    setCountStatus(0, 0);
+                }
                 return;
             }
+            myStatus = false;
             try {
-                var statusInfo = XposedHelpers.getObjectField(item, "A01");
-                var classJid = Unobfuscator.findFirstClassUsingName(statusInfoClazz.getClassLoader(), StringMatchType.EndsWith, "jid.Jid");
-                var field = ReflectionUtils.getFieldByExtendType(statusInfo.getClass(), classJid);
-                this.userJid = new FMessageWpp.UserJid(ReflectionUtils.getObjectField(field, statusInfo));
+                Object jidObj = findJidObject(item, 3);
+                if (jidObj == null) {
+                    throw new RuntimeException("WAE: Jid object not found in status item");
+                }
+                this.userJid = new FMessageWpp.UserJid(jidObj);
+                
+                Object statusInfo = null;
+                for (java.lang.reflect.Field f : item.getClass().getDeclaredFields()) {
+                    try {
+                        f.setAccessible(true);
+                        Object val = f.get(item);
+                        if (val != null && findJidObject(val, 1) != null) {
+                            statusInfo = val;
+                            break;
+                        }
+                    } catch (Exception ignored) {}
+                }
+                if (statusInfo == null) {
+                    statusInfo = item;
+                }
+                
                 var waContact = WaContactWpp.getWaContactFromJid(this.userJid);
-                var contactName = waContact.getDisplayName();
+                String contactName = null;
+                if (waContact != null) {
+                    contactName = waContact.getDisplayName();
+                }
+                if (TextUtils.isEmpty(contactName)) {
+                    contactName = WppCore.getContactName(this.userJid);
+                }
+                if (TextUtils.isEmpty(contactName)) {
+                    contactName = "WhatsApp Contact";
+                }
                 igStatusContactName.setText(contactName);
-                var profile = BitmapDrawable.createFromPath(waContact.getProfilePhoto().getAbsolutePath());
-                if (profile == null)
-                    profile = Utils.getApplication().getDrawable(ResId.drawable.user_foreground);
+                
+                Drawable profile = null;
+                if (waContact != null && waContact.getProfilePhoto() != null) {
+                    try {
+                        profile = BitmapDrawable.createFromPath(waContact.getProfilePhoto().getAbsolutePath());
+                    } catch (Exception ignored) {}
+                }
+                if (profile == null) {
+                    profile = WppCore.getContactPhotoDrawable(this.userJid.getPhoneRawString());
+                }
+                if (profile == null) {
+                    profile = Utils.getApplication().getDrawable(R.drawable.user_foreground);
+                }
                 igStatusContactPhoto.setImageDrawable(profile);
-                var countUnseen = XposedHelpers.getIntField(statusInfo, "A01");
-                var total = XposedHelpers.getIntField(statusInfo, "A00");
+                
+                int total = 1;
+                int countUnseen = (position <= com.waenhancer.xposed.features.customization.IGStatus.unseenCount) ? 1 : 0;
                 setCountStatus(countUnseen, total);
             } catch (Exception e) {
                 XposedBridge.log(e);
@@ -205,6 +296,23 @@ public class IGStatusAdapter extends ArrayAdapter {
                     setCountStatus.invoke(igStatusContactPhoto, total, countUnseen, total);
                 } catch (Exception e) {
                     XposedBridge.log(e);
+                }
+            }
+            if (internalContainer != null) {
+                if (myStatus) {
+                    if (hasOwnActiveStatus()) {
+                        internalContainer.setBackground(createRingDrawable(DesignUtils.getUnSeenColor()));
+                    } else {
+                        internalContainer.setBackground(null);
+                    }
+                } else {
+                    if (countUnseen > 0) {
+                        internalContainer.setBackground(createRingDrawable(DesignUtils.getUnSeenColor()));
+                    } else if (total > 0) {
+                        internalContainer.setBackground(createRingDrawable(Color.GRAY));
+                    } else {
+                        internalContainer.setBackground(null);
+                    }
                 }
             }
         }
@@ -229,18 +337,19 @@ public class IGStatusAdapter extends ArrayAdapter {
 
         // Criando o RelativeLayout interno
         RelativeLayout internalRelativeLayout = new RelativeLayout(this.getContext());
-        RelativeLayout.LayoutParams internalRelativeParams = new RelativeLayout.LayoutParams(Utils.dipToPixels(64), Utils.dipToPixels(64));
+        RelativeLayout.LayoutParams internalRelativeParams = new RelativeLayout.LayoutParams(Utils.dipToPixels(56), Utils.dipToPixels(56));
         internalRelativeLayout.setLayoutParams(internalRelativeParams);
 
         // Adicionando os elementos ao RelativeLayout interno
         var contactPhoto = (ImageView) XposedHelpers.newInstance(this.clazzImageStatus, this.getContext());
         RelativeLayout.LayoutParams photoParams = new RelativeLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         contactPhoto.setLayoutParams(photoParams);
-        contactPhoto.setPadding(Utils.dipToPixels(2.5F), Utils.dipToPixels(2.5F), Utils.dipToPixels(2.5F), Utils.dipToPixels(2.5F));
+        contactPhoto.setPadding(Utils.dipToPixels(3.5F), Utils.dipToPixels(3.5F), Utils.dipToPixels(3.5F), Utils.dipToPixels(3.5F));
         contactPhoto.setScaleType(ImageView.ScaleType.CENTER_CROP);
         contactPhoto.setImageDrawable(DesignUtils.getDrawableByName("avatar_contact"));
         holder.igStatusContactPhoto = contactPhoto;
-        contactPhoto.setClickable(true);
+        holder.internalContainer = internalRelativeLayout;
+        contactPhoto.setClickable(false);
         XposedHelpers.callMethod(contactPhoto, "setBorderSize", (float) Utils.dipToPixels(2.5f));
         XposedHelpers.callMethod(contactPhoto, "setCornerRadius", (float) Utils.dipToPixels(80f));
         XposedHelpers.setObjectField(contactPhoto, "A02", Color.GRAY);
@@ -256,11 +365,16 @@ public class IGStatusAdapter extends ArrayAdapter {
         addBtnRelativeLayout.setVisibility(View.GONE);
 
         ImageView iconImageView = new ImageView(this.getContext());
-        RelativeLayout.LayoutParams iconParams = new RelativeLayout.LayoutParams(Utils.dipToPixels(24), Utils.dipToPixels(24));
+        RelativeLayout.LayoutParams iconParams = new RelativeLayout.LayoutParams(Utils.dipToPixels(20), Utils.dipToPixels(20));
         iconImageView.setLayoutParams(iconParams);
         if (cacheIcon == null) {
             var icon = DesignUtils.getDrawableByName("my_status_add_button_new");
-            cacheIcon = DesignUtils.generatePrimaryColorDrawable(icon);
+            if (icon != null) {
+                cacheIcon = DesignUtils.generatePrimaryColorDrawable(icon);
+            }
+        }
+        if (cacheIcon == null) {
+            cacheIcon = getGreenPlusIcon();
         }
         iconImageView.setImageDrawable(cacheIcon);
         iconImageView.setBackgroundColor(Color.TRANSPARENT);
@@ -287,5 +401,132 @@ public class IGStatusAdapter extends ArrayAdapter {
         frameLayout.addView(linearLayout);
         relativeLayout.addView(frameLayout);
         return relativeLayout;
+    }
+
+    private static android.view.View findViewByClassName(android.view.View root, String className) {
+        if (root == null) return null;
+        if (root.getClass().getName().contains(className)) {
+            return root;
+        }
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                android.view.View child = vg.getChildAt(i);
+                android.view.View found = findViewByClassName(child, className);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static boolean hasOwnActiveStatus() {
+        for (Object item : itens) {
+            if (item == null) continue;
+            try {
+                Object jidObj = IGStatusViewHolder.findJidObject(item, 3);
+                if (jidObj != null) {
+                    var userJid = new FMessageWpp.UserJid(jidObj);
+                    if (userJid.isStatus() || String.valueOf(jidObj).contains("status@broadcast")) {
+                        return true;
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return false;
+    }
+
+    public static Drawable getLetterAvatar(String name) {
+        int size = Utils.dipToPixels(56);
+        android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+        
+        android.graphics.Paint circlePaint = new android.graphics.Paint();
+        circlePaint.setAntiAlias(true);
+        circlePaint.setColor(0xFF4A1525);
+        canvas.drawCircle(size / 2.0f, size / 2.0f, size / 2.0f, circlePaint);
+        
+        android.graphics.Paint textPaint = new android.graphics.Paint();
+        textPaint.setAntiAlias(true);
+        textPaint.setColor(android.graphics.Color.WHITE);
+        textPaint.setTextSize(Utils.dipToPixels(24));
+        textPaint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
+        textPaint.setTextAlign(android.graphics.Paint.Align.CENTER);
+        
+        String firstLetter = "O";
+        if (name != null && !name.trim().isEmpty()) {
+            firstLetter = name.trim().substring(0, 1).toUpperCase();
+        }
+        
+        float x = size / 2.0f;
+        float y = (size / 2.0f) - ((textPaint.descent() + textPaint.ascent()) / 2.0f);
+        canvas.drawText(firstLetter, x, y, textPaint);
+        
+        return new android.graphics.drawable.BitmapDrawable(Utils.getApplication().getResources(), bitmap);
+    }
+
+    public static Drawable getGreenPlusIcon() {
+        int size = Utils.dipToPixels(20);
+        android.graphics.Bitmap bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
+        
+        android.graphics.Paint circlePaint = new android.graphics.Paint();
+        circlePaint.setAntiAlias(true);
+        circlePaint.setColor(0xFF00E676);
+        canvas.drawCircle(size / 2.0f, size / 2.0f, size / 2.0f, circlePaint);
+        
+        android.graphics.Paint plusPaint = new android.graphics.Paint();
+        plusPaint.setAntiAlias(true);
+        plusPaint.setColor(android.graphics.Color.WHITE);
+        plusPaint.setStrokeWidth(Utils.dipToPixels(2.0f));
+        plusPaint.setStyle(android.graphics.Paint.Style.STROKE);
+        plusPaint.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+        
+        float padding = Utils.dipToPixels(5);
+        canvas.drawLine(padding, size / 2.0f, size - padding, size / 2.0f, plusPaint);
+        canvas.drawLine(size / 2.0f, padding, size / 2.0f, size - padding, plusPaint);
+        
+        return new android.graphics.drawable.BitmapDrawable(Utils.getApplication().getResources(), bitmap);
+    }
+
+    private static boolean clickViewByContentDescription(android.view.View root, String descSnippet) {
+        if (root == null) return false;
+        CharSequence desc = root.getContentDescription();
+        if (desc != null && desc.toString().toLowerCase().contains(descSnippet.toLowerCase())) {
+            root.performClick();
+            return true;
+        }
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                if (clickViewByContentDescription(vg.getChildAt(i), descSnippet)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static android.view.View findBottomNavigationMenuView(android.view.View root) {
+        if (root == null) return null;
+        String name = root.getClass().getName();
+        if (name.contains("BottomNavigationMenuView") || name.contains("BottomNavigation") || name.contains("BottomBar")) {
+            return root;
+        }
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup vg = (android.view.ViewGroup) root;
+            for (int i = 0; i < vg.getChildCount(); i++) {
+                android.view.View found = findBottomNavigationMenuView(vg.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    public static Drawable createRingDrawable(int color) {
+        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+        gd.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        gd.setColor(Color.TRANSPARENT);
+        gd.setStroke(Utils.dipToPixels(2.5f), color);
+        return gd;
     }
 }

@@ -26,7 +26,7 @@ import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.features.others.MenuHome;
 import com.waenhancer.xposed.utils.DesignUtils;
 import com.waenhancer.xposed.utils.ReflectionUtils;
-import com.waenhancer.xposed.utils.ResId;
+import com.waenhancer.R;
 import com.waenhancer.xposed.utils.Utils;
 
 import org.json.JSONObject;
@@ -80,8 +80,8 @@ public class CustomPrivacy extends Feature {
                         if (activity.findViewById(0x7f0a9999) != null) return;
                         int id = Utils.getID("contact_info_security_card_layout", "id");
                         ViewGroup infoLayout = activity.getWindow().findViewById(id);
-                        Drawable icon = activity.getDrawable(ResId.drawable.ic_privacy);
-                        View itemView = createItemView(activity, activity.getString(ResId.string.custom_privacy), activity.getString(ResId.string.custom_privacy_sum), icon);
+                        Drawable icon = com.waenhancer.xposed.utils.DesignUtils.getDrawable(R.drawable.ic_privacy);
+                        View itemView = createItemView(activity, com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.custom_privacy, "Custom Privacy"), com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.custom_privacy_sum, "Enable/Disable Custom Privacy"), icon);
                         itemView.setId(0x7f0a9999);
                         itemView.setOnClickListener((v) -> showPrivacyDialog(activity, ContactInfoActivityClass.isInstance(activity)));
                         infoLayout.addView(itemView);
@@ -98,8 +98,8 @@ public class CustomPrivacy extends Feature {
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                     var menu = (Menu) param.args[0];
                     var activity = (Activity) param.thisObject;
-                    var customPrivacy = menu.add(0, 0, 0, ResId.string.custom_privacy);
-                    customPrivacy.setIcon(ResId.drawable.ic_privacy);
+                    var customPrivacy = menu.add(0, 0, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.custom_privacy, "Custom Privacy"));
+                    customPrivacy.setIcon(com.waenhancer.xposed.utils.DesignUtils.getDrawable(R.drawable.ic_privacy));
                     customPrivacy.setOnMenuItemClickListener(item -> {
                         showPrivacyDialog(activity, ContactInfoActivityClass.isInstance(activity));
                         return true;
@@ -112,12 +112,20 @@ public class CustomPrivacy extends Feature {
 
         if (type == 0) return;
 
-        var icon = DesignUtils.resizeDrawable(DesignUtils.getDrawable(ResId.drawable.ic_privacy), Utils.dipToPixels(24), Utils.dipToPixels(24));
+        var icon = DesignUtils.resizeDrawable(DesignUtils.getDrawable(R.drawable.ic_privacy), Utils.dipToPixels(24), Utils.dipToPixels(24));
         icon.setTint(0xff8696a0);
-        MenuHome.menuItems.add((menu, activity) -> menu.add(0, 0, 0, ResId.string.custom_privacy).setIcon(icon).setOnMenuItemClickListener(item -> {
-            showCustomPrivacyList(activity, ContactInfoActivityClass, GroupInfoActivityClass);
-            return true;
-        }));
+        MenuHome.menuItems.add((menu, activity) -> {
+            int MENU_ID_CUSTOM_PRIVACY = 0x7EAE0007;
+            if (menu.findItem(MENU_ID_CUSTOM_PRIVACY) != null) return;
+            String title = com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.custom_privacy, "Custom Privacy");
+            if (title == null || title.isEmpty()) {
+                title = "Custom Privacy";
+            }
+            menu.add(0, MENU_ID_CUSTOM_PRIVACY, 0, title).setIcon(icon).setOnMenuItemClickListener(item -> {
+                showCustomPrivacyList(activity, ContactInfoActivityClass, GroupInfoActivityClass);
+                return true;
+            });
+        });
     }
 
     private View createItemView(Activity activity, String title, String summary, Drawable icon) {
@@ -201,12 +209,12 @@ public class CustomPrivacy extends Feature {
         }
 
         if (list.isEmpty()) {
-            Utils.showToast(activity.getString(ResId.string.no_contact_with_custom_privacy), Toast.LENGTH_SHORT);
+            Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.no_contact_with_custom_privacy, "No contact with custom privacy!"), Toast.LENGTH_SHORT);
             return;
         }
 
         AlertDialogWpp builder = new AlertDialogWpp(activity);
-        builder.setTitle(ResId.string.custom_privacy);
+        builder.setTitle(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.custom_privacy, "Custom Privacy"));
         ListView listView = new ListView(activity);
         listView.setAdapter(new CustomPrivacyAdapter(activity, pprefs, list, contactClass, groupClass));
         builder.setView(listView);
@@ -231,15 +239,15 @@ public class CustomPrivacy extends Feature {
 
     private AlertDialogWpp createPrivacyDialog(Activity activity, String number) {
         AlertDialogWpp builder = new AlertDialogWpp(activity);
-        builder.setTitle(ResId.string.custom_privacy);
+        builder.setTitle(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.custom_privacy, "Custom Privacy"));
 
         String[] items = {
-                activity.getString(ResId.string.hideread),
-                activity.getString(ResId.string.hidestatusview),
-                activity.getString(ResId.string.hidereceipt),
-                activity.getString(ResId.string.ghostmode),
-                activity.getString(ResId.string.ghostmode_r),
-                activity.getString(ResId.string.block_call)
+                com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.hideread, "Hide Blue Ticks"),
+                com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.hidestatusview, "Hide Status View"),
+                com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.hidereceipt, "Hide Delivered"),
+                com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.ghostmode, "Hide Typing"),
+                com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.ghostmode_r, "Hide Recording Audio"),
+                com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.block_call, "Block Call")
         };
 
         String[] itemsKeys = {
@@ -250,7 +258,7 @@ public class CustomPrivacy extends Feature {
 
         builder.setMultiChoiceItems(items, checkedItems, (dialog, which, isChecked) -> checkedItems[which] = isChecked);
         builder.setPositiveButton("OK", (dialog, which) -> savePreferences(number, itemsKeys, checkedItems));
-        builder.setNegativeButton(activity.getString(ResId.string.cancel), null);
+        builder.setNegativeButton(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.cancel, "Cancel"), null);
 
         return builder;
     }

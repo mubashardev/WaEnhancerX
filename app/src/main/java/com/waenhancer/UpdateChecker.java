@@ -4,7 +4,7 @@ import android.app.Activity;
 
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.components.AlertDialogWpp;
-import com.waenhancer.xposed.utils.ResId;
+import com.waenhancer.R;
 import com.waenhancer.xposed.utils.Utils;
 
 import org.json.JSONArray;
@@ -102,10 +102,10 @@ public class UpdateChecker implements Runnable {
             String installedVersion = normalizeVersion(com.waenhancer.BuildConfig.VERSION_NAME);
             writeDebugLog("[UpdateChecker] run() - Installed Version: " + installedVersion);
             boolean installedIsBeta = isInstalledVersionBeta(installedVersion);
-            String userChannel = getReleaseChannelPreference();
+            String updateAlertPref = getUpdateAlertPreference();
 
-            // Use the user's selected channel as the effective channel.
-            String effectiveChannel = userChannel;
+            // Use the user's selected preference for filtering
+            String effectiveChannel = updateAlertPref;
 
             String selectedVersion = null;
             String selectedTagName = null;
@@ -202,13 +202,13 @@ public class UpdateChecker implements Runnable {
     private void showAlreadyLatestDialog() {
         try {
             var dialog = new AlertDialogWpp(mActivity);
-            dialog.setTitle(mActivity.getString(ResId.string.error_detected));
-            dialog.setMessage(mActivity.getString(ResId.string.already_have_latest));
-            dialog.setPositiveButton(mActivity.getString(ResId.string.contact_developer), (dialog1, which) -> {
+            dialog.setTitle(mActivity.getString(R.string.error_detected));
+            dialog.setMessage(mActivity.getString(R.string.already_have_latest));
+            dialog.setPositiveButton(mActivity.getString(R.string.contact_developer), (dialog1, which) -> {
                 Utils.openLink(mActivity, "https://t.me/mubashardev");
                 dialog1.dismiss();
             });
-            dialog.setNegativeButton(mActivity.getString(ResId.string.cancel), (dialog1, which) -> dialog1.dismiss());
+            dialog.setNegativeButton(mActivity.getString(R.string.cancel), (dialog1, which) -> dialog1.dismiss());
             dialog.show();
         } catch (Exception e) {
             XposedBridge.log("[" + TAG + "] Error showing already latest dialog: " + e.getMessage());
@@ -320,42 +320,52 @@ public class UpdateChecker implements Runnable {
         return versionName != null && versionName.contains("-beta-");
     }
 
-    private String getReleaseChannelPreference() {
+    private String getUpdateAlertPreference() {
         // First try to get it from WaEnhancer's XSharedPreferences (available in Xposed context)
         if (com.waenhancer.xposed.core.WppCore.waePrefs != null) {
             if (com.waenhancer.xposed.core.WppCore.waePrefs instanceof de.robv.android.xposed.XSharedPreferences) {
                 ((de.robv.android.xposed.XSharedPreferences) com.waenhancer.xposed.core.WppCore.waePrefs).reload();
             }
-            String channel = com.waenhancer.xposed.core.WppCore.waePrefs.getString("release_channel", "stable");
-            writeDebugLog("[UpdateChecker] Channel from waePrefs: " + channel);
-            return channel;
+            String pref = com.waenhancer.xposed.core.WppCore.waePrefs.getString("update_alert_pref", null);
+            if (pref == null) {
+                // Fallback to legacy channel key if new one isn't set
+                String legacy = com.waenhancer.xposed.core.WppCore.waePrefs.getString("release_channel", "stable");
+                pref = "beta".equals(legacy) ? "both" : "stable";
+            }
+            writeDebugLog("[UpdateChecker] Alert pref from waePrefs: " + pref);
+            return pref;
         }
 
         // Fallback to WppCore's WaGlobal prefs (legacy/other contexts)
-        String channel = com.waenhancer.xposed.core.WppCore.getPrivString("release_channel", null);
-        if (channel != null) {
-             writeDebugLog("[UpdateChecker] Channel from getPrivString: " + channel);
-             return channel;
+        String pref = com.waenhancer.xposed.core.WppCore.getPrivString("update_alert_pref", null);
+        if (pref != null) {
+             writeDebugLog("[UpdateChecker] Alert pref from getPrivString: " + pref);
+             return pref;
         }
 
         // Fallback to default prefs (running in Enhancer App context)
         android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(mActivity);
-        String defaultChannel = prefs.getString("release_channel", "stable");
-        writeDebugLog("[UpdateChecker] Channel from default prefs: " + defaultChannel);
-        return defaultChannel;
+        String defaultPref = prefs.getString("update_alert_pref", "both");
+        writeDebugLog("[UpdateChecker] Alert pref from default prefs: " + defaultPref);
+        return defaultPref;
     }
 
     private boolean isExactBetaTagFormat(String tagName) {
         return tagName != null && BETA_TAG_PATTERN.matcher(tagName).matches();
     }
 
-    private boolean shouldShowReleaseType(String releaseTagName, String userChannel) {
+    private boolean shouldShowReleaseType(String releaseTagName, String updateAlertPref) {
         boolean isBetaRelease = releaseTagName != null && releaseTagName.contains("-beta-");
-        boolean userWantsBeta = "beta".equals(userChannel);
-        if (userWantsBeta) {
-            return true;
+        
+        switch (updateAlertPref) {
+            case "stable":
+                return !isBetaRelease;
+            case "beta":
+                return isBetaRelease;
+            case "both":
+            default:
+                return true;
         }
-        return !isBetaRelease;
     }
 
     private String getReleaseTypeBadge(String releaseTagName) {

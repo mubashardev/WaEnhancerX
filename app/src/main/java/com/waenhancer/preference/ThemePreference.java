@@ -92,6 +92,10 @@ public class ThemePreference extends Preference implements FilePicker.OnUriPicke
 
         Button importTheme = dialogView.findViewById(R.id.import_theme_button);
         importTheme.setOnClickListener(v -> {
+            if (FilePicker.fileCapture == null) {
+                Toast.makeText(context, "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+                return;
+            }
             FilePicker.setOnUriPickedListener(this);
             FilePicker.fileCapture.launch(new String[] { "application/zip" });
         });

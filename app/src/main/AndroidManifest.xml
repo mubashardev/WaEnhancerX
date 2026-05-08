@@ -88,6 +88,11 @@
             android:authorities="${applicationId}.provider"
             android:exported="true" />
 
+        <provider
+            android:name="com.google.firebase.provider.FirebaseInitProvider"
+            android:authorities="${applicationId}.firebaseinitprovider"
+            tools:node="remove" />
+
         <activity
             android:name=".xposed.features.others.EmbeddedSettingsActivity"
             android:exported="true"
@@ -134,6 +139,7 @@
         <activity
             android:name=".activities.RecordingsActivity"
             android:theme="@style/AppTheme"
+            android:exported="true"
             android:parentActivityName=".activities.MainActivity" />
 
 
@@ -165,6 +171,12 @@
             android:label="@string/changelog_title"
             android:exported="true"
             android:parentActivityName=".activities.MainActivity" />
+
+        <activity
+            android:name=".activities.UpdateSettingsActivity"
+            android:theme="@style/AppTheme"
+            android:label="@string/update_settings"
+            android:parentActivityName=".activities.ChangelogActivity" />
 
         <activity
             android:name=".activities.LogsActivity"

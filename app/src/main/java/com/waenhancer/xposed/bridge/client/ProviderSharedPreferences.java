@@ -9,7 +9,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.waenhancer.BuildConfig;
-import de.robv.android.xposed.XposedBridge;
+import com.waenhancer.xposed.utils.Utils;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -32,41 +32,46 @@ public class ProviderSharedPreferences implements SharedPreferences {
     private final SharedPreferences fallbackPrefs;
 
     public ProviderSharedPreferences(Context context, SharedPreferences localPrefs, SharedPreferences fallbackPrefs) {
-        XposedBridge.log("[WAE] ProviderSharedPreferences: Initializing...");
+        Utils.log("[WAE] ProviderSharedPreferences: Initializing...");
         this.context = context;
         this.localPrefs = localPrefs;
         this.fallbackPrefs = fallbackPrefs;
         try {
             hydrateFromProvider();
         } catch (Throwable t) {
-            XposedBridge.log("[WAE] ProviderSharedPreferences: Hydration critical failure: " + t.getMessage());
+            Utils.log("[WAE] ProviderSharedPreferences: Hydration critical failure: " + t.getMessage());
         }
         try {
             registerObserver();
         } catch (Throwable t) {
-            XposedBridge.log("[WAE] ProviderSharedPreferences: Observer registration critical failure: " + t.getMessage());
+            Utils.log("[WAE] ProviderSharedPreferences: Observer registration critical failure: " + t.getMessage());
         }
-        XposedBridge.log("[WAE] ProviderSharedPreferences: Initialization complete. Local cache size: " + localPrefs.getAll().size());
+        Utils.log("[WAE] ProviderSharedPreferences: Initialization complete. Local cache size: " + localPrefs.getAll().size());
     }
 
     private void registerObserver() {
         String authority = BuildConfig.APPLICATION_ID + AUTHORITY_SUFFIX;
         try {
-            XposedBridge.log("[WAE] ProviderSharedPreferences: Registering observer for authority: " + authority);
+            Utils.log("[WAE] ProviderSharedPreferences: Registering observer for authority: " + authority);
             context.getContentResolver().registerContentObserver(
                     Uri.parse("content://" + authority + "/preferences"),
                     true,
                     new android.database.ContentObserver(new android.os.Handler(android.os.Looper.getMainLooper())) {
+                        private long lastHydration = 0;
                         @Override
                         public void onChange(boolean selfChange) {
-                            XposedBridge.log("[WAE] ProviderSharedPreferences: Preferences changed, re-hydrating...");
-                            hydrateFromProvider();
+                            long now = System.currentTimeMillis();
+                            if (now - lastHydration > 500) {
+                                lastHydration = now;
+                                Utils.log("[WAE] ProviderSharedPreferences: Preferences changed, re-hydrating...");
+                                hydrateFromProvider();
+                            }
                         }
                     }
             );
-            XposedBridge.log("[WAE] ProviderSharedPreferences: Observer registered successfully");
+            Utils.log("[WAE] ProviderSharedPreferences: Observer registered successfully");
         } catch (Throwable e) {
-            XposedBridge.log("[WAE] ProviderSharedPreferences: Failed to register observer: " + e.getMessage());
+            Utils.log("[WAE] ProviderSharedPreferences: Failed to register observer: " + e.getMessage());
             // Try legacy
             if (!authority.equals(AUTHORITY_LEGACY)) {
                 try {
@@ -74,9 +79,14 @@ public class ProviderSharedPreferences implements SharedPreferences {
                         Uri.parse("content://" + AUTHORITY_LEGACY + "/preferences"),
                         true,
                         new android.database.ContentObserver(new android.os.Handler(android.os.Looper.getMainLooper())) {
+                            private long lastHydration = 0;
                             @Override
                             public void onChange(boolean selfChange) {
-                                hydrateFromProvider();
+                                long now = System.currentTimeMillis();
+                                if (now - lastHydration > 500) {
+                                    lastHydration = now;
+                                    hydrateFromProvider();
+                                }
                             }
                         }
                     );
@@ -160,6 +170,11 @@ public class ProviderSharedPreferences implements SharedPreferences {
         return localPrefs.contains(key) || (fallbackPrefs != null && fallbackPrefs.contains(key));
     }
 
+    public void reload() {
+        Utils.log("[WAE] ProviderSharedPreferences: Manual reload requested");
+        hydrateFromProvider();
+    }
+
     @Override
     public Editor edit() {
         return new ProviderEditor(localPrefs.edit());
@@ -175,14 +190,22 @@ public class ProviderSharedPreferences implements SharedPreferences {
         localPrefs.unregisterOnSharedPreferenceChangeListener(listener);
     }
 
+    private long lastHydrationTime = 0;
+
     @SuppressWarnings("unchecked")
     private void hydrateFromProvider() {
+        long now = System.currentTimeMillis();
+        if (now - lastHydrationTime < 500) {
+            // Skip rapid re-hydration to avoid loops
+            return;
+        }
+        lastHydrationTime = now;
         try {
-            XposedBridge.log("[WAE] ProviderSharedPreferences: Starting hydration...");
+            Utils.log("[WAE] ProviderSharedPreferences: Starting hydration...");
             Bundle result = callProvider("get_all_preferences", null);
             if (result == null) {
-                XposedBridge.log("[WAE] ProviderSharedPreferences: Hydration failed (null result). Using fallback.");
-                XposedBridge.log("[WAE] ProviderSharedPreferences: Fallback cache size: " + fallbackPrefs.getAll().size());
+                Utils.log("[WAE] ProviderSharedPreferences: Hydration failed (null result). Using fallback.");
+                Utils.log("[WAE] ProviderSharedPreferences: Fallback cache size: " + fallbackPrefs.getAll().size());
                 var editor = localPrefs.edit().clear();
                 for (Map.Entry<String, ?> entry : fallbackPrefs.getAll().entrySet()) {
                     Object value = entry.getValue();
@@ -195,7 +218,7 @@ public class ProviderSharedPreferences implements SharedPreferences {
                 editor.commit();
                 return;
             }
-            XposedBridge.log("[WAE] ProviderSharedPreferences: Received preferences bundle from provider");
+            Utils.log("[WAE] ProviderSharedPreferences: Received preferences bundle from provider");
             Serializable serializable = result.getSerializable("prefs");
             if (!(serializable instanceof Map)) {
                 android.util.Log.e("WAE", "Hydration failed: result 'prefs' is not a Map (type: " + (serializable != null ? serializable.getClass().getName() : "null") + ")");
@@ -261,6 +284,7 @@ public class ProviderSharedPreferences implements SharedPreferences {
         }
 
         private void syncToProvider(String key, Object value) {
+            de.robv.android.xposed.XposedBridge.log("[WAE] ProviderSharedPreferences: Putting preference: " + key + " = " + value);
             Bundle extras = new Bundle();
             extras.putString("key", key);
             if (value instanceof String) {
@@ -369,20 +393,20 @@ public class ProviderSharedPreferences implements SharedPreferences {
         String[] authorities = new String[] { BuildConfig.APPLICATION_ID + AUTHORITY_SUFFIX, AUTHORITY_LEGACY, "com.waenhancer.provider" };
         for (String authority : authorities) {
             try {
-                XposedBridge.log("[WAE] ProviderSharedPreferences: Calling provider: " + method + " (Authority: " + authority + ")");
+                Utils.log("[WAE] ProviderSharedPreferences: Calling provider: " + method + " (Authority: " + authority + ")");
                 Bundle result = context.getContentResolver().call(
                         Uri.parse("content://" + authority),
                         method,
                         null,
                         extras);
                 if (result != null) {
-                    XposedBridge.log("[WAE] ProviderSharedPreferences: Call successful for: " + authority);
+                    Utils.log("[WAE] ProviderSharedPreferences: Call successful for: " + authority);
                     return result;
                 } else {
-                    XposedBridge.log("[WAE] ProviderSharedPreferences: Call returned null for: " + authority);
+                    Utils.log("[WAE] ProviderSharedPreferences: Call returned null for: " + authority);
                 }
             } catch (Throwable e) {
-                XposedBridge.log("[WAE] ProviderSharedPreferences: Call error (" + authority + "): " + e.getMessage());
+                Utils.log("[WAE] ProviderSharedPreferences: Call error (" + authority + "): " + e.getMessage());
             }
         }
         return null;
