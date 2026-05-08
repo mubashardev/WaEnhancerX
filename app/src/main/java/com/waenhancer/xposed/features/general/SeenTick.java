@@ -279,8 +279,8 @@ public class SeenTick extends Feature {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 var menu = (Menu) param.args[0];
-                var menuItem = menu.add(0, 0, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.send_blue_tick, "Send blue tick"));
-                if (ticktype == 1) menuItem.setShowAsAction(2);
+                var menuItem = menu.add(0, R.string.send_blue_tick, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.send_blue_tick, "Send blue tick"));
+                if (ticktype == 1) menuItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
                 menuItem.setIcon(Utils.getID("ic_notif_mark_read", "drawable"));
                 menuItem.setOnMenuItemClickListener(item -> {
                     sendBlueTick(currentJid);
@@ -290,6 +290,24 @@ public class SeenTick extends Feature {
                 });
             }
         });
+
+        var menuClass = onCreateMenuConversationMethod.getDeclaringClass();
+        var onOptionsItemSelectedMethod = ReflectionUtils.findMethodUsingFilterIfExists(menuClass,
+                m -> m.getName().equals("onOptionsItemSelected") && m.getParameterCount() == 1 && m.getParameterTypes()[0].equals(MenuItem.class));
+        if (onOptionsItemSelectedMethod != null) {
+            XposedBridge.hookMethod(onOptionsItemSelectedMethod, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    var item = (MenuItem) param.args[0];
+                    if (item.getItemId() == R.string.send_blue_tick) {
+                        sendBlueTick(currentJid);
+                        Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.sending_read_blue_tick, "Sending read receipt..."), Toast.LENGTH_SHORT);
+                        HideSeenView.updateAllBubbleViews();
+                        param.setResult(true);
+                    }
+                }
+            });
+        }
 
         MenuStatusListener.registerStatusListener(
                 new MenuStatusListener.onMenuItemStatusListener() {

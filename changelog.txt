@@ -1,7 +1,7 @@
-[Added]
-
 [Improvements]
+- Improved confirmation dialogs with action buttons
 
 [Fixes]
 - Fixed Dialogs without action buttons
+- Fixed Send blue tick button
 
