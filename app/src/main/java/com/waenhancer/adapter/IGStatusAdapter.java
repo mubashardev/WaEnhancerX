@@ -167,12 +167,46 @@ public class IGStatusAdapter extends ArrayAdapter {
         public boolean myStatus;
         private FMessageWpp.UserJid userJid;
 
+        private Object findJidObject(Object obj, int depth) {
+            if (obj == null || depth < 0) return null;
+            Class<?> clazz = obj.getClass();
+            String name = clazz.getName();
+            if (name.endsWith(".Jid") || name.endsWith(".UserJid") || name.endsWith(".PhoneUserJid")) {
+                return obj;
+            }
+            if (name.startsWith("java.") || name.startsWith("android.") || name.startsWith("androidx.")) {
+                return null;
+            }
+            for (java.lang.reflect.Field f : clazz.getDeclaredFields()) {
+                try {
+                    f.setAccessible(true);
+                    Object val = f.get(obj);
+                    if (val == null) continue;
+                    Object found = findJidObject(val, depth - 1);
+                    if (found != null) return found;
+                } catch (Exception ignored) {}
+            }
+            return null;
+        }
+
         public void setInfo(Object item) {
 
             if (Objects.equals(item, "my_status")) {
                 myStatus = true;
                 igStatusContactName.setText(UnobfuscatorCache.getInstance().getString("mystatus"));
-                var profile = WppCore.getMyPhoto();
+                Drawable profile = null;
+                try {
+                    var myUserJid = WppCore.getMyUserJid();
+                    if (myUserJid != null) {
+                        var waContact = WaContactWpp.getWaContactFromJid(myUserJid);
+                        if (waContact != null && waContact.getProfilePhoto() != null) {
+                            profile = BitmapDrawable.createFromPath(waContact.getProfilePhoto().getAbsolutePath());
+                        }
+                    }
+                } catch (Exception ignored) {}
+                if (profile == null) {
+                    profile = WppCore.getMyPhoto();
+                }
                 if (profile == null)
                     profile = Utils.getApplication().getDrawable(R.drawable.user_foreground);
                 igStatusContactPhoto.setImageDrawable(profile);
@@ -180,19 +214,73 @@ public class IGStatusAdapter extends ArrayAdapter {
                 return;
             }
             try {
-                var statusInfo = XposedHelpers.getObjectField(item, "A01");
-                var classJid = Unobfuscator.findFirstClassUsingName(statusInfoClazz.getClassLoader(), StringMatchType.EndsWith, "jid.Jid");
-                var field = ReflectionUtils.getFieldByExtendType(statusInfo.getClass(), classJid);
-                this.userJid = new FMessageWpp.UserJid(ReflectionUtils.getObjectField(field, statusInfo));
+                Object jidObj = findJidObject(item, 3);
+                if (jidObj == null) {
+                    throw new RuntimeException("WAE: Jid object not found in status item");
+                }
+                this.userJid = new FMessageWpp.UserJid(jidObj);
+                
+                Object statusInfo = null;
+                for (java.lang.reflect.Field f : item.getClass().getDeclaredFields()) {
+                    try {
+                        f.setAccessible(true);
+                        Object val = f.get(item);
+                        if (val != null && findJidObject(val, 1) != null) {
+                            statusInfo = val;
+                            break;
+                        }
+                    } catch (Exception ignored) {}
+                }
+                if (statusInfo == null) {
+                    statusInfo = item;
+                }
+                
                 var waContact = WaContactWpp.getWaContactFromJid(this.userJid);
-                var contactName = waContact.getDisplayName();
+                String contactName = null;
+                if (waContact != null) {
+                    contactName = waContact.getDisplayName();
+                }
+                if (TextUtils.isEmpty(contactName)) {
+                    contactName = WppCore.getContactName(this.userJid);
+                }
+                if (TextUtils.isEmpty(contactName)) {
+                    contactName = "WhatsApp Contact";
+                }
                 igStatusContactName.setText(contactName);
-                var profile = BitmapDrawable.createFromPath(waContact.getProfilePhoto().getAbsolutePath());
-                if (profile == null)
+                
+                Drawable profile = null;
+                if (waContact != null && waContact.getProfilePhoto() != null) {
+                    try {
+                        profile = BitmapDrawable.createFromPath(waContact.getProfilePhoto().getAbsolutePath());
+                    } catch (Exception ignored) {}
+                }
+                if (profile == null) {
+                    profile = WppCore.getContactPhotoDrawable(this.userJid.getPhoneRawString());
+                }
+                if (profile == null) {
                     profile = Utils.getApplication().getDrawable(R.drawable.user_foreground);
+                }
                 igStatusContactPhoto.setImageDrawable(profile);
-                var countUnseen = XposedHelpers.getIntField(statusInfo, "A01");
-                var total = XposedHelpers.getIntField(statusInfo, "A00");
+                
+                int total = 0;
+                int countUnseen = 0;
+                java.util.List<java.lang.reflect.Field> intFields = new java.util.ArrayList<>();
+                for (java.lang.reflect.Field f : statusInfo.getClass().getDeclaredFields()) {
+                    if (f.getType() == int.class) {
+                        f.setAccessible(true);
+                        intFields.add(f);
+                    }
+                }
+                if (intFields.size() >= 2) {
+                    int val1 = intFields.get(0).getInt(statusInfo);
+                    int val2 = intFields.get(1).getInt(statusInfo);
+                    total = Math.max(val1, val2);
+                    countUnseen = Math.min(val1, val2);
+                } else if (intFields.size() == 1) {
+                    total = intFields.get(0).getInt(statusInfo);
+                    countUnseen = total;
+                }
+                
                 setCountStatus(countUnseen, total);
             } catch (Exception e) {
                 XposedBridge.log(e);
