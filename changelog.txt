@@ -4,4 +4,4 @@
 [Fixes]
 - Fixed Dialogs without action buttons
 - Fixed Send blue tick button
-
+- Fixed Call Blocking not working for some devices

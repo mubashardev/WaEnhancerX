@@ -379,8 +379,8 @@ public class Others extends Feature {
         var contact = WppCore.getContactName(userJid);
         var number = userJid.getPhoneNumber();
         if (!TextUtils.isEmpty(contact))
-            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.contact_s), contact)).append("\n");
-        sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.phone_number_s), number)).append("\n");
+            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.contact_s, "Contact: %s"), contact)).append("\n");
+        sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.phone_number_s, "Number: +%s"), number)).append("\n");
         var ip = (String) XposedHelpers.getObjectField(wamCall, "callPeerIpStr");
         if (ip != null) {
             var client = new OkHttpClient.Builder().build();
@@ -390,15 +390,15 @@ public class Others extends Feature {
             var json = new JSONObject(content);
             var country = json.getString("country");
             var city = json.getString("city");
-            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.country_s), country)).append("\n").append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.city_s), city)).append("\n").append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.ip_s), ip)).append("\n");
+            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.country_s, "Country: %s"), country)).append("\n").append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.city_s, "City: %s"), city)).append("\n").append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.ip_s, "IP: %s"), ip)).append("\n");
         }
         var platform = (String) XposedHelpers.getObjectField(wamCall, "callPeerPlatform");
         if (platform != null)
-            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.platform_s), platform)).append("\n");
+            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.platform_s, "Platform: %s"), platform)).append("\n");
         var wppVersion = (String) XposedHelpers.getObjectField(wamCall, "callPeerAppVersion");
         if (wppVersion != null)
-            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.wpp_version_s), wppVersion)).append("\n");
-        Utils.showNotification(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.call_information), sb.toString());
+            sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.wpp_version_s, "WhatsApp Version: %s"), wppVersion)).append("\n");
+        Utils.showNotification(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.call_information, "Call Information"), sb.toString());
     }
 
     private void alwaysOnline() throws Exception {
