@@ -146,42 +146,42 @@ public class AlertDialogWpp {
     }
 
     private boolean shouldUseSystem() {
-        return mIsUsingSystem || mAlertDialogWpp == null;
+        return true;
     }
 
     public AlertDialogWpp setTitle(String title) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setTitle(title);
-        } else {
+        if (title == null || title.trim().isEmpty()) {
+            title = "WaEnhancer";
+        }
+        mAlertDialog.setTitle(title);
+        if (!shouldUseSystem()) {
             try {
                 XposedHelpers.callMethod(mAlertDialogWpp, "setTitle", title);
             } catch (Throwable t) {
-                mAlertDialog.setTitle(title);
+                XposedBridge.log("[WAE] AlertDialogWpp setTitle failed on Wpp builder: " + t.getMessage());
             }
         }
         return this;
     }
 
     public AlertDialogWpp setTitle(int title) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setTitle(title);
-        } else {
+        mAlertDialog.setTitle(title);
+        if (!shouldUseSystem()) {
             try {
                 XposedHelpers.callMethod(mAlertDialogWpp, "setTitle", getContext().getString(title));
             } catch (Throwable t) {
-                mAlertDialog.setTitle(title);
+                XposedBridge.log("[WAE] AlertDialogWpp setTitle(int) failed on Wpp builder: " + t.getMessage());
             }
         }
         return this;
     }
 
     public AlertDialogWpp setTitle(CharSequence title) {
-        if (title == null || title.toString().isEmpty()) {
-            title = "Restart Required";
+        if (title == null || title.toString().trim().isEmpty()) {
+            title = "WaEnhancer";
         }
-        if (shouldUseSystem()) {
-            mAlertDialog.setTitle(title);
-        } else {
+        mAlertDialog.setTitle(title);
+        if (!shouldUseSystem()) {
             try {
                 // Heuristic search for setTitle
                 java.lang.reflect.Method setTitleMethod = ReflectionUtils.findMethodUsingFilterIfExists(mAlertDialogWpp.getClass(),
@@ -193,19 +193,18 @@ public class AlertDialogWpp {
                     XposedHelpers.callMethod(mAlertDialogWpp, "setTitle", title);
                 }
             } catch (Throwable e) {
-                mAlertDialog.setTitle(title);
+                XposedBridge.log("[WAE] AlertDialogWpp setTitle(CharSequence) failed on Wpp builder: " + e.getMessage());
             }
         }
         return this;
     }
 
     public AlertDialogWpp setMessage(CharSequence message) {
-        if (message == null || message.toString().isEmpty()) {
-            message = "WhatsApp needs to be restarted to apply the changes you made in WaEnhancer. Would you like to restart now?";
+        if (message == null || message.toString().trim().isEmpty()) {
+            message = "Are you sure you want to proceed?";
         }
-        if (shouldUseSystem()) {
-            mAlertDialog.setMessage(message);
-        } else {
+        mAlertDialog.setMessage(message);
+        if (!shouldUseSystem()) {
             try {
                 if (setMessageMethod != null) {
                     setMessageMethod.invoke(mAlertDialogWpp, message);
@@ -215,16 +214,14 @@ public class AlertDialogWpp {
             } catch (Throwable e) {
                 XposedBridge.log("[WAE] AlertDialogWpp setMessage failed, falling back to system: " + e.getMessage());
                 mIsUsingSystem = true;
-                mAlertDialog.setMessage(message);
             }
         }
         return this;
     }
 
     public AlertDialogWpp setItems(CharSequence[] items, DialogInterface.OnClickListener listener) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setItems(items, listener);
-        } else {
+        mAlertDialog.setItems(items, listener);
+        if (!shouldUseSystem()) {
             try {
                 if (setItemsMethod != null) {
                     if (setItemsMethod.getParameterTypes()[0].equals(CharSequence[].class)) {
@@ -236,7 +233,7 @@ public class AlertDialogWpp {
                     XposedHelpers.callMethod(mAlertDialogWpp, "setItems", items, listener);
                 }
             } catch (Throwable e) {
-                mAlertDialog.setItems(items, listener);
+                XposedBridge.log("[WAE] AlertDialogWpp setItems failed on Wpp builder: " + e.getMessage());
             }
         }
         return this;
@@ -244,9 +241,8 @@ public class AlertDialogWpp {
 
 
     public AlertDialogWpp setMultiChoiceItems(CharSequence[] items, boolean[] checkedItems, DialogInterface.OnMultiChoiceClickListener listener) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setMultiChoiceItems(items, checkedItems, listener);
-        } else {
+        mAlertDialog.setMultiChoiceItems(items, checkedItems, listener);
+        if (!shouldUseSystem()) {
             try {
                 if (setMultiChoiceItemsMethod != null) {
                     if (setMultiChoiceItemsMethod.getParameterTypes()[0].equals(CharSequence[].class)) {
@@ -258,7 +254,7 @@ public class AlertDialogWpp {
                     XposedHelpers.callMethod(mAlertDialogWpp, "setMultiChoiceItems", items, checkedItems, listener);
                 }
             } catch (Exception e) {
-                mAlertDialog.setMultiChoiceItems(items, checkedItems, listener);
+                XposedBridge.log("[WAE] AlertDialogWpp setMultiChoiceItems failed on Wpp builder: " + e.getMessage());
             }
         }
         return this;
@@ -307,46 +303,58 @@ public class AlertDialogWpp {
     }
 
     public AlertDialogWpp setNegativeButton(CharSequence text, DialogInterface.OnClickListener listener) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setNegativeButton(text, listener);
-        } else {
+        if (text == null || text.toString().trim().isEmpty()) {
+            text = "Cancel";
+        }
+        mAlertDialog.setNegativeButton(text, listener);
+        if (!shouldUseSystem()) {
             callBuilderMethod(setNegativeButtonMethod, "setNegativeButton", text, listener);
         }
         return this;
     }
 
     public AlertDialogWpp setNeutralButton(CharSequence text, DialogInterface.OnClickListener listener) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setNeutralButton(text, listener);
-        } else {
+        if (text == null || text.toString().trim().isEmpty()) {
+            text = "Dismiss";
+        }
+        mAlertDialog.setNeutralButton(text, listener);
+        if (!shouldUseSystem()) {
             callBuilderMethod(setNeutralButtonMethod, "setNeutralButton", text, listener);
         }
         return this;
     }
 
     public AlertDialogWpp setPositiveButton(CharSequence text, DialogInterface.OnClickListener listener) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setPositiveButton(text, listener);
-        } else {
+        if (text == null || text.toString().trim().isEmpty()) {
+            text = "OK";
+        }
+        mAlertDialog.setPositiveButton(text, listener);
+        if (!shouldUseSystem()) {
             callBuilderMethod(setPositiveButtonMethod, "setPositiveButton", text, listener);
         }
         return this;
     }
 
     public AlertDialogWpp setView(View view) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setView(view);
-        } else {
-            XposedHelpers.callMethod(mAlertDialogWpp, "setView", view);
+        mAlertDialog.setView(view);
+        if (!shouldUseSystem()) {
+            try {
+                XposedHelpers.callMethod(mAlertDialogWpp, "setView", view);
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] AlertDialogWpp setView failed on Wpp builder: " + t.getMessage());
+            }
         }
         return this;
     }
 
     public AlertDialogWpp setCancelable(boolean cancelable) {
-        if (shouldUseSystem()) {
-            mAlertDialog.setCancelable(cancelable);
-        } else {
-            XposedHelpers.callMethod(mAlertDialogWpp, "setCancelable", cancelable);
+        mAlertDialog.setCancelable(cancelable);
+        if (!shouldUseSystem()) {
+            try {
+                XposedHelpers.callMethod(mAlertDialogWpp, "setCancelable", cancelable);
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] AlertDialogWpp setCancelable failed on Wpp builder: " + t.getMessage());
+            }
         }
         return this;
     }
