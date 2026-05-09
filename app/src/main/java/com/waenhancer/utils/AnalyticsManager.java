@@ -40,13 +40,21 @@ public class AnalyticsManager {
         }
     }
 
+    private static final java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+
     private static void logViaProvider(Context context, String eventName, Bundle params) {
-        try {
-            Bundle extras = new Bundle();
-            extras.putString("event_name", eventName);
-            extras.putBundle("params", params);
-            callProvider(context, "record_event", extras);
-        } catch (Exception ignored) {}
+        // Capture context and params for the background task
+        final Context appContext = context.getApplicationContext() != null ? context.getApplicationContext() : context;
+        final Bundle eventParams = params != null ? new Bundle(params) : null;
+
+        executor.execute(() -> {
+            try {
+                Bundle extras = new Bundle();
+                extras.putString("event_name", eventName);
+                extras.putBundle("params", eventParams);
+                callProvider(appContext, "record_event", extras);
+            } catch (Exception ignored) {}
+        });
     }
 
     private static void callProvider(Context context, String method, Bundle extras) {

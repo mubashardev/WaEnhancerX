@@ -910,12 +910,27 @@ public class WppCore {
     }
 
     public static File getContactPhotoFile(String jid) {
-        String datafolder = Utils.getApplication().getCacheDir().getParent() + "/";
-        File file = new File(datafolder + "/cache/" + "Profile Pictures" + "/" + stripJID(jid) + ".jpg");
-        if (!file.exists())
-            file = new File(datafolder + "files" + "/" + "Avatars" + "/" + jid + ".j");
-        if (file.exists())
-            return file;
+        if (jid == null) return null;
+        String datafolder = Utils.getApplication().getFilesDir().getParent() + "/";
+        String bareJid = stripJID(jid);
+        
+        // Try Profile Pictures cache (uses bare JID)
+        File file = new File(datafolder + "cache/Profile Pictures/" + bareJid + ".jpg");
+        if (file.exists()) return file;
+        
+        // Try Avatars folder (uses FULL JID)
+        file = new File(datafolder + "files/Avatars/" + jid + ".j");
+        if (file.exists()) return file;
+        
+        // Try me photo if it's our own JID
+        if (jid.equals(Utils.getMyNumber())) {
+            file = new File(datafolder + "files/me");
+            if (file.exists()) return file;
+            file = new File(datafolder + "files/me.jpg");
+            if (file.exists()) return file;
+        }
+
+        XposedBridge.log("WAE: WppCore: getContactPhotoFile: No photo found for " + jid + " in " + datafolder);
         return null;
     }
 
@@ -1021,6 +1036,16 @@ public class WppCore {
     public static String getPrivString(String key, String defaultValue) {
         if (privPrefs == null) return defaultValue;
         return privPrefs.getString(key, defaultValue);
+    }
+
+    public static void setPrivLong(String key, long value) {
+        if (privPrefs == null) return;
+        privPrefs.edit().putLong(key, value).apply();
+    }
+
+    public static long getPrivLong(String key, long defaultValue) {
+        if (privPrefs == null) return defaultValue;
+        return privPrefs.getLong(key, defaultValue);
     }
 
     public static JSONObject getPrivJSON(String key, JSONObject defaultValue) {

@@ -1,6 +1,12 @@
 [Added]
-- Added support for 2.26.18.xx WA/WB
+- Added option to change group admin indicator as text/emoji in settings.
+- Added option (in WAEX Changelog Settings) to set frequency for update alerts in WhatsApp when ignored a version.
 
 [Improvements]
-- Improved IG Style Stories
-- WaEnhancerX Changelog Screen improved
+- Converted static group admin icon image to text for better control.
+
+[Fixes]
+- Fixed unexpected crash on app startup for some devices.
+- Fixed downloading profile photo icon.
+- Fixed show/hide group admin icon.
+- Fixed View Once media download.

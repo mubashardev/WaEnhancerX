@@ -17,6 +17,7 @@ public class UpdateSettingsActivity extends BaseActivity {
 
     private static final String PREF_DOWNGRADES = "downgrades_enabled";
     private static final String PREF_UPDATE_ALERTS = "update_alert_pref";
+    private static final String PREF_UPDATE_FREQ = "update_alert_frequency";
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -41,7 +42,6 @@ public class UpdateSettingsActivity extends BaseActivity {
                     runOnUiThread(() -> {
                         if (hasRoot) {
                             prefs.edit().putBoolean(PREF_DOWNGRADES, true).apply();
-                            com.waenhancer.xposed.core.WppCore.setPrivBoolean(PREF_DOWNGRADES, true);
                         } else {
                             switchRoot.setChecked(false);
                             Toast.makeText(this, R.string.root_required_downgrade, Toast.LENGTH_LONG).show();
@@ -50,7 +50,6 @@ public class UpdateSettingsActivity extends BaseActivity {
                 }).start();
             } else {
                 prefs.edit().putBoolean(PREF_DOWNGRADES, false).apply();
-                com.waenhancer.xposed.core.WppCore.setPrivBoolean(PREF_DOWNGRADES, false);
             }
         });
 
@@ -75,8 +74,36 @@ public class UpdateSettingsActivity extends BaseActivity {
             if (checkedId == R.id.radio_stable) val = "stable";
             else if (checkedId == R.id.radio_beta) val = "beta";
             
-            prefs.edit().putString(PREF_UPDATE_ALERTS, val).apply();
-            com.waenhancer.xposed.core.WppCore.setPrivString(PREF_UPDATE_ALERTS, val);
+            prefs.edit()
+                .putString(PREF_UPDATE_ALERTS, val)
+                .putBoolean("need_restart", true)
+                .apply();
+        });
+
+        // Update Alert Frequency Dropdown
+        android.widget.AutoCompleteTextView freqDropdown = findViewById(R.id.auto_complete_update_frequency);
+        String[] freqEntries = getResources().getStringArray(R.array.update_frequency_entries);
+        String[] freqValues = getResources().getStringArray(R.array.update_frequency_values);
+        
+        android.widget.ArrayAdapter<String> adapter = new android.widget.ArrayAdapter<>(this, android.R.layout.simple_dropdown_item_1line, freqEntries);
+        freqDropdown.setAdapter(adapter);
+
+        String currentFreq = prefs.getString(PREF_UPDATE_FREQ, "restart");
+        int currentIdx = 0;
+        for (int i = 0; i < freqValues.length; i++) {
+            if (freqValues[i].equals(currentFreq)) {
+                currentIdx = i;
+                break;
+            }
+        }
+        freqDropdown.setText(freqEntries[currentIdx], false);
+
+        freqDropdown.setOnItemClickListener((parent, view, position, id) -> {
+            String selectedValue = freqValues[position];
+            prefs.edit()
+                .putString(PREF_UPDATE_FREQ, selectedValue)
+                .putBoolean("need_restart", true)
+                .apply();
         });
     }
 }

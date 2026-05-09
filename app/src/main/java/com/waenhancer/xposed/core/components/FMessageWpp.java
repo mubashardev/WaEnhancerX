@@ -35,6 +35,9 @@ public class FMessageWpp {
     private static Method getOriginalMessageKey;
     private static Class abstractMediaMessageClass;
     private static Field broadcastField;
+    private static Field keyIdField;
+    private static Field keyFromMeField;
+    private static Field keyRemoteJidField;
     private final Object fmessage;
     private Key key;
     private static final Set<String> VALID_DOMAINS = Set.of(
@@ -68,6 +71,16 @@ public class FMessageWpp {
             abstractMediaMessageClass = Unobfuscator.loadAbstractMediaMessageClass(classLoader);
             broadcastField = Unobfuscator.loadBroadcastTagField(classLoader);
             getFieldIdMessage = Unobfuscator.loadSetEditMessageField(classLoader);
+
+            // Initialize Key fields dynamically
+            if (Key.TYPE != null) {
+                keyIdField = ReflectionUtils.getFieldByType(Key.TYPE, String.class);
+                keyFromMeField = ReflectionUtils.getFieldByType(Key.TYPE, boolean.class);
+                keyRemoteJidField = ReflectionUtils.getFieldByExtendType(Key.TYPE, UserJid.TYPE_JID);
+                XposedBridge.log("[WAE] Key fields initialized: ID=" + (keyIdField != null ? keyIdField.getName() : "null") +
+                        ", fromMe=" + (keyFromMeField != null ? keyFromMeField.getName() : "null") +
+                        ", remoteJid=" + (keyRemoteJidField != null ? keyRemoteJidField.getName() : "null"));
+            }
         } catch (Exception e) {
             XposedBridge.log(e);
         }
@@ -266,9 +279,20 @@ public class FMessageWpp {
          */
         public Key(Object key) {
             this.thisObject = key;
-            this.messageID = (String) XposedHelpers.getObjectField(key, "A01");
-            this.isFromMe = XposedHelpers.getBooleanField(key, "A02");
-            this.remoteJid = new UserJid(XposedHelpers.getObjectField(key, "A00"));
+            try {
+                this.messageID = (keyIdField != null) ? (String) keyIdField.get(key) : (String) XposedHelpers.getObjectField(key, "A01");
+                this.isFromMe = (keyFromMeField != null) ? keyFromMeField.getBoolean(key) : XposedHelpers.getBooleanField(key, "A02");
+                Object jidObj = (keyRemoteJidField != null) ? keyRemoteJidField.get(key) : XposedHelpers.getObjectField(key, "A00");
+                this.remoteJid = new UserJid(jidObj);
+            } catch (Exception e) {
+                XposedBridge.log("[WAE] Error initializing FMessageWpp.Key: " + e.getMessage());
+                // Fallback to old hardcoded names if dynamic resolution fails (though unlikely to help if it fails)
+                try {
+                    this.messageID = (String) XposedHelpers.getObjectField(key, "A01");
+                    this.isFromMe = XposedHelpers.getBooleanField(key, "A02");
+                    this.remoteJid = new UserJid(XposedHelpers.getObjectField(key, "A00"));
+                } catch (Exception ignored) {}
+            }
             var fmessage = WppCore.getFMessageFromKey(key);
             if (fmessage != null) {
                 this.fmessage = new FMessageWpp(fmessage);
@@ -277,9 +301,18 @@ public class FMessageWpp {
 
         public Key(Object key, FMessageWpp fmessage) {
             this.thisObject = key;
-            this.messageID = (String) XposedHelpers.getObjectField(key, "A01");
-            this.isFromMe = XposedHelpers.getBooleanField(key, "A02");
-            this.remoteJid = new UserJid(XposedHelpers.getObjectField(key, "A00"));
+            try {
+                this.messageID = (keyIdField != null) ? (String) keyIdField.get(key) : (String) XposedHelpers.getObjectField(key, "A01");
+                this.isFromMe = (keyFromMeField != null) ? keyFromMeField.getBoolean(key) : XposedHelpers.getBooleanField(key, "A02");
+                Object jidObj = (keyRemoteJidField != null) ? keyRemoteJidField.get(key) : XposedHelpers.getObjectField(key, "A00");
+                this.remoteJid = new UserJid(jidObj);
+            } catch (Exception e) {
+                try {
+                    this.messageID = (String) XposedHelpers.getObjectField(key, "A01");
+                    this.isFromMe = XposedHelpers.getBooleanField(key, "A02");
+                    this.remoteJid = new UserJid(XposedHelpers.getObjectField(key, "A00"));
+                } catch (Exception ignored) {}
+            }
             this.fmessage = fmessage;
         }
 

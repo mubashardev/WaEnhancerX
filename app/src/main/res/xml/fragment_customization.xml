@@ -140,6 +140,13 @@
             app:summary="@string/show_admin_group_icon_sum"
             app:title="@string/show_admin_group_icon" />
 
+        <EditTextPreference
+            app:dependency="admin_grp"
+            app:defaultValue="👑"
+            app:key="admin_emoji"
+            app:summary="@string/admin_emoji_sum"
+            app:title="@string/admin_emoji_title" />
+
         <rikka.material.preference.MaterialSwitchPreference
             android:summary="@string/new_context_menu_ui_sum"
             app:key="floatingmenu"
