@@ -171,15 +171,16 @@ jobs:
           git push
 
       - name: Setup Google Services
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          SECRET="${{ secrets.GOOGLE_SERVICES_JSON }}"
-          if [ -n "$SECRET" ]; then
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
             # Check if it starts with { (raw JSON) or needs decoding
-            if [[ "$SECRET" == \{* ]]; then
-              echo "$SECRET" > app/google-services.json
+            if [[ "$GOOGLE_SERVICES_JSON" == \{* ]]; then
+              echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
               echo "Google Services: Configuration injected from raw JSON secret"
             else
-              echo "$SECRET" | base64 --decode > app/google-services.json
+              echo "$GOOGLE_SERVICES_JSON" | base64 --decode > app/google-services.json
               echo "Google Services: Configuration injected from base64 secret"
             fi
             
@@ -195,15 +196,20 @@ jobs:
 
       - name: Build WhatsApp flavor
         run: |
+          BUILD_TASKS="assembleWhatsappRelease"
+          if [ -s "app/google-services.json" ]; then
+            BUILD_TASKS="$BUILD_TASKS uploadCrashlyticsMappingFileWhatsappRelease"
+          fi
+          
           if [ -n "${{ secrets.KEY_STORE }}" ]; then
             echo "${{ secrets.KEY_STORE }}" | base64 --decode > release.jks
-            ./gradlew assembleWhatsappRelease -Pminify=true \
+            ./gradlew $BUILD_TASKS -Pminify=true \
               -PandroidStoreFile=release.jks \
               -PandroidStorePassword='${{ secrets.KEY_STORE_PASSWORD }}' \
               -PandroidKeyAlias='${{ secrets.ALIAS }}' \
               -PandroidKeyPassword='${{ secrets.KEY_PASSWORD }}'
           else
-            ./gradlew assembleWhatsappRelease -Pminify=true
+            ./gradlew $BUILD_TASKS -Pminify=true
           fi
 
       - name: Rename APK to versioned name
