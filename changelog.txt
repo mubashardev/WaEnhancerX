@@ -1,5 +1,5 @@
 [Restored]
-- Option to hide ads between status updates
+- Option to hide ads between status updates [Not Tested]
 
 [Fixes]
 - Fixed crashes HideReciept, HideSeen, FilterGroup
