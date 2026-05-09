@@ -389,7 +389,12 @@ public class FeatureLoader {
                 // Wrap in post() to ensure we don't interfere with the immediate activity resume cycle
                 activity.getWindow().getDecorView().post(() -> {
                     try {
-                        XposedBridge.log("[WAE] Activity RESUMED: " + activity.getClass().getSimpleName());
+                        String activityName = activity.getClass().getSimpleName();
+                        XposedBridge.log("[WAE] Activity RESUMED: " + activityName);
+                        
+                        // Record screen view in analytics
+                        com.waenhancer.utils.AnalyticsManager.logScreenView(activity, activityName);
+                        
                         if (pref instanceof de.robv.android.xposed.XSharedPreferences) {
                             ((de.robv.android.xposed.XSharedPreferences) pref).reload();
                         } else if (pref instanceof com.waenhancer.xposed.bridge.client.ProviderSharedPreferences) {

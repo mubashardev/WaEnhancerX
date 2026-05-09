@@ -439,7 +439,7 @@ public class HomeFragment extends BaseFragment {
 
     private void saveConfigs(Context context) {
         if (FilePicker.fileSalve == null) {
-            Toast.makeText(context, context.getString(R.string.configs_imported) != null ? "Please use the standalone WaEnhancer app for file operations." : "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, context.getString(R.string.configs_imported) != null ? "Please use the standalone WaEnhancerX app for file operations." : "Please use the standalone WaEnhancerX app for file operations.", Toast.LENGTH_SHORT).show();
             return;
         }
         FilePicker.setOnUriPickedListener((uri) -> {
@@ -461,7 +461,7 @@ public class HomeFragment extends BaseFragment {
 
     private void importConfigs(Context context) {
         if (FilePicker.fileCapture == null) {
-            Toast.makeText(context, "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, "Please use the standalone WaEnhancerX app for file operations.", Toast.LENGTH_SHORT).show();
             return;
         }
         FilePicker.setOnUriPickedListener((uri) -> {

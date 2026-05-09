@@ -161,7 +161,7 @@ public class FileSelectPreference extends Preference implements Preference.OnPre
 
         if (mineTypes.length == 1 && mineTypes[0].contains("image")) {
             if (FilePicker.imageCapture == null) {
-                Toast.makeText(getContext(), "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+                Toast.makeText(getContext(), "Please use the standalone WaEnhancerX app for file operations.", Toast.LENGTH_SHORT).show();
                 return true;
             }
             FilePicker.setOnUriPickedListener(this);
@@ -170,7 +170,7 @@ public class FileSelectPreference extends Preference implements Preference.OnPre
             return true;
         }
         if (FilePicker.fileCapture == null) {
-            Toast.makeText(getContext(), "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Please use the standalone WaEnhancerX app for file operations.", Toast.LENGTH_SHORT).show();
             return true;
         }
         FilePicker.fileCapture.launch(mineTypes);

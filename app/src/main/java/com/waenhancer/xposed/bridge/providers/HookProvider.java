@@ -64,6 +64,14 @@ public class HookProvider extends ContentProvider {
             }
             return Bundle.EMPTY;
         }
+        if ("record_event".equals(method) && extras != null) {
+            String eventName = extras.getString("event_name");
+            Bundle params = extras.getBundle("params");
+            if (eventName != null) {
+                com.waenhancer.utils.AnalyticsManager.logEvent(context, eventName, params);
+            }
+            return Bundle.EMPTY;
+        }
         if ("get_preference".equals(method) && extras != null) {
             String key = extras.getString("key");
             Bundle result = new Bundle();
