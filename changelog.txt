@@ -9,4 +9,4 @@
 - Fixed unexpected crash on app startup for some devices.
 - Fixed downloading profile photo icon.
 - Fixed show/hide group admin icon.
-- Fixed View Once media download.
+- Fixed View Once media download
