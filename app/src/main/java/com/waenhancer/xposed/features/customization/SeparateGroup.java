@@ -142,7 +142,11 @@ public class SeparateGroup extends Feature {
                     if (tabs.contains(GROUPS) && tabInstances.containsKey(GROUPS)) {
                         var instance2 = groupCount <= 0 ? constructor3.newInstance() : constructor2.newInstance(groupCount);
                         var instance1 = constructor1.newInstance(instance2);
-                        enableCountMethod.invoke(param.thisObject, param.args[0], instance1, tabs.indexOf(GROUPS));
+                        if (enableCountMethod.getDeclaringClass().isInstance(param.thisObject)) {
+                            enableCountMethod.invoke(param.thisObject, param.args[0], instance1, tabs.indexOf(GROUPS));
+                        } else {
+                            XposedBridge.log("SeparateGroup: Invalid receiver for enableCountMethod: " + param.thisObject.getClass().getName());
+                        }
                     }
                 }
             }
