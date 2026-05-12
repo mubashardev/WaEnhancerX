@@ -727,14 +727,24 @@ public class AlertDialogWpp {
                         
                         android.widget.CompoundButton switchView;
                         try {
-                            switchView = (android.widget.CompoundButton) XposedHelpers.newInstance(
-                                    XposedHelpers.findClass("com.google.android.material.materialswitch.MaterialSwitch", mContext.getClassLoader()), mContext);
+                            android.content.Context modContext = mContext.createPackageContext("com.waenhancer", android.content.Context.CONTEXT_IGNORE_SECURITY);
+                            int themeResId = isDarkMode ? 
+                                    com.google.android.material.R.style.Theme_Material3_Dark : 
+                                    com.google.android.material.R.style.Theme_Material3_Light;
+                            android.view.ContextThemeWrapper themedContext = new android.view.ContextThemeWrapper(modContext, themeResId);
+                            switchView = new com.google.android.material.materialswitch.MaterialSwitch(themedContext);
                         } catch (Throwable t) {
+                            de.robv.android.xposed.XposedBridge.log("[WAE] MaterialSwitch direct creation failed: " + t.getMessage());
                             try {
-                                switchView = (android.widget.CompoundButton) XposedHelpers.newInstance(
-                                        XposedHelpers.findClass("androidx.appcompat.widget.SwitchCompat", mContext.getClassLoader()), mContext);
-                            } catch (Throwable t2) {
-                                switchView = new android.widget.Switch(mContext);
+                                switchView = (android.widget.CompoundButton) de.robv.android.xposed.XposedHelpers.newInstance(
+                                        de.robv.android.xposed.XposedHelpers.findClass("com.google.android.material.materialswitch.MaterialSwitch", AlertDialogWpp.class.getClassLoader()), mContext);
+                            } catch (Throwable t1) {
+                                try {
+                                    switchView = (android.widget.CompoundButton) de.robv.android.xposed.XposedHelpers.newInstance(
+                                            de.robv.android.xposed.XposedHelpers.findClass("androidx.appcompat.widget.SwitchCompat", AlertDialogWpp.class.getClassLoader()), mContext);
+                                } catch (Throwable t2) {
+                                    switchView = new android.widget.Switch(mContext);
+                                }
                             }
                         }
                         final android.widget.CompoundButton finalSwitchView = switchView;
@@ -751,18 +761,23 @@ public class AlertDialogWpp {
                                 new int[] { -android.R.attr.state_checked }
                             };
                             int[] thumbColors = new int[] {
-                                accentColor,
-                                isDarkMode ? 0xFF9E9E9E : 0xFFECECEC
+                                isDarkMode ? 0xFF0A3F1F : 0xFF0B6623, // Forest/dark green thumb
+                                isDarkMode ? 0xFF9E9E9E : 0xFFECECEC  // Neutral grey thumb
                             };
                             int[] trackColors = new int[] {
-                                accentColor & 0x4DFFFFFF | 0x4D000000,
-                                isDarkMode ? 0x33FFFFFF : 0x33000000
+                                isDarkMode ? 0xFF57DF85 : 0xFF50D179, // Vibrant light green track
+                                isDarkMode ? 0x33FFFFFF : 0x33000000  // Translucent neutral track
                             };
                             android.content.res.ColorStateList thumbStateList = new android.content.res.ColorStateList(states, thumbColors);
                             android.content.res.ColorStateList trackStateList = new android.content.res.ColorStateList(states, trackColors);
                             
-                            XposedHelpers.callMethod(finalSwitchView, "setThumbTintList", thumbStateList);
-                            XposedHelpers.callMethod(finalSwitchView, "setTrackTintList", trackStateList);
+                            if (finalSwitchView instanceof com.google.android.material.materialswitch.MaterialSwitch) {
+                                ((com.google.android.material.materialswitch.MaterialSwitch) finalSwitchView).setThumbTintList(thumbStateList);
+                                ((com.google.android.material.materialswitch.MaterialSwitch) finalSwitchView).setTrackTintList(trackStateList);
+                            } else {
+                                de.robv.android.xposed.XposedHelpers.callMethod(finalSwitchView, "setThumbTintList", thumbStateList);
+                                de.robv.android.xposed.XposedHelpers.callMethod(finalSwitchView, "setTrackTintList", trackStateList);
+                            }
                         } catch (Throwable t) {
                             try {
                                 int[][] states = new int[][] {

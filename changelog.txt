@@ -1,7 +1,3 @@
-[Added]
-- Tasker Automation Integration [Experimental] - Send & Receive WhatsApp messages through intents (Tasker, MacroDroid, Automate)
-
-
 [Improvements]
 - Option to manage recordings directly from WhatsApp Calls Tab Menu
 
