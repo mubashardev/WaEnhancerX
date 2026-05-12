@@ -99,6 +99,8 @@
     <string name="show_edited_message_history_sum">Show edited message history when clicking \"Edited\" on a message</string>
     <string name="show_message_device_source">Show Message Device Source</string>
     <string name="show_message_device_source_sum">Shows whether a message was sent from the primary device or a linked device</string>
+    <string name="message_sent_via_phone">This message was sent via Phone</string>
+    <string name="message_sent_via_linked_device">This message was sent via Linked Device</string>
     <string name="dnd_message">When Do Not Disturb mode is on, you will be unable to send or receive messages</string>
     <string name="dnd_mode_title">DND Mode</string>
     <string name="activate">Activate</string>
