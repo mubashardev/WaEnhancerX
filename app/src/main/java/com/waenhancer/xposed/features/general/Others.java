@@ -646,7 +646,7 @@ public class Others extends Feature {
             } else if (currentDeviceId > 0) {
                 Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(
                         R.string.message_sent_via_linked_device,
-                        "This message was sent via Linked Device"), Toast.LENGTH_SHORT);
+                        "This message was sent a via Linked Device (Desktop/Phone)"), Toast.LENGTH_SHORT);
             }
 
             Object original = XposedHelpers.getAdditionalInstanceField(v, DEVICE_SOURCE_CLICK_ORIGINAL_FIELD);
