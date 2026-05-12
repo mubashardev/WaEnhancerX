@@ -644,7 +644,7 @@ public class Others extends Feature {
                 var name = WppCore.getContactName(userjid);
                 name = TextUtils.isEmpty(name) ? userjid.getPhoneNumber() : name;
                 if (showOnline)
-                    Utils.showToast(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.toast_online), name), Toast.LENGTH_SHORT);
+                    Utils.showToast(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.toast_online, "%s is online"), name), Toast.LENGTH_SHORT);
                 Tasker.sendTaskerEvent(name, WppCore.stripJID(jid), "contact_online");
             }
         });
