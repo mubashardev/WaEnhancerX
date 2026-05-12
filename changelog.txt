@@ -11,3 +11,4 @@
 - Fixed empty toast for Contact Online
 - Fixed Edit History not showing
 - Fixed Custom Privacy Per Contact
+- Fixed Anti-Revoke according to latest WhatsApp logic

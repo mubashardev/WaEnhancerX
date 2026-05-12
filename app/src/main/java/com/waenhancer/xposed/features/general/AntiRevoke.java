@@ -38,6 +38,8 @@ import de.robv.android.xposed.XposedHelpers;
 public class AntiRevoke extends Feature {
 
     private static final ConcurrentHashMap<String, Set<String>> messageRevokedMap = new ConcurrentHashMap<>();
+    // Global key_id → deletion timestamp map (bypasses JID mismatch between LID and phone number)
+    private static final ConcurrentHashMap<String, Long> revokedKeyIds = new ConcurrentHashMap<>();
     private static final ThreadLocal<DateFormat> DATE_FORMAT_THREAD_LOCAL = ThreadLocal
             .withInitial(() -> DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT,
                     Utils.getApplication().getResources().getConfiguration().getLocales().get(0)));
@@ -188,7 +190,180 @@ public class AntiRevoke extends Feature {
             }
         });
 
+        // SQL-level anti-revoke: block DELETE+INSERT revocation pattern
+        addAntiRevokeSqlHooks();
     }
+
+    /**
+     * SQL-level anti-revoke protection.
+     * 
+     * WhatsApp's revocation flow (v2.26.19.2):
+     *   1. DELETE FROM message WHERE _id=? args=[N]
+     *   2. INSERT INTO message VALUES ... message_type=15 ... _id=N
+     * 
+     * Strategy: Block the INSERT of message_type=15 records (the "deleted" placeholder).
+     * This preserves the original message because:
+     *   - If we block the DELETE too, WhatsApp may retry or crash
+     *   - If we only block the INSERT, the original row is gone but no "deleted" placeholder appears
+     *   - Better: block the DELETE when followed by a type=15 INSERT
+     * 
+     * Refined strategy: Track recent DELETEs. When a type=15 INSERT arrives for the same _id,
+     * block both the INSERT AND retroactively we know the DELETE was a revocation.
+     * Since we can't undo the DELETE, we block the DELETE preemptively by checking if
+     * from_me=0 for that row before allowing it.
+     */
+    private final java.util.Set<String> recentDeletedIds = java.util.Collections.synchronizedSet(new java.util.HashSet<>());
+
+    private void addAntiRevokeSqlHooks() {
+        int antiRevokeValue = Integer.parseInt(prefs.getString("antirevoke", "0"));
+        if (antiRevokeValue == 0) {
+            XposedBridge.log("WAE: Anti-revoke disabled in preferences, skipping SQL hooks");
+            return;
+        }
+
+        try {
+            // HOOK 1: Block DELETE FROM message — this is step 1 of WhatsApp's revocation.
+            // We block ALL deletes on the message table for non-self messages.
+            // Normal "delete for me" uses a different code path (not raw SQL delete).
+            XposedBridge.hookAllMethods(android.database.sqlite.SQLiteDatabase.class, "delete", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    try {
+                        String table = (String) param.args[0];
+                        if (!"message".equals(table)) return;
+                        
+                        String where = (String) param.args[1];
+                        String[] whereArgs = param.args.length > 2 ? (String[]) param.args[2] : null;
+                        
+                        // Only intercept _id based deletes (revocation pattern)
+                        if (where != null && where.contains("_id=?") && whereArgs != null && whereArgs.length > 0) {
+                            String msgId = whereArgs[0];
+                            
+                            // Check if this message is from_me=0 (not our own message)
+                            // by querying the DB before the delete happens
+                            try {
+                                android.database.sqlite.SQLiteDatabase db = (android.database.sqlite.SQLiteDatabase) param.thisObject;
+                                android.database.Cursor cursor = db.rawQuery(
+                                    "SELECT from_me, message_type, key_id, chat_row_id FROM message WHERE _id=?", 
+                                    new String[]{msgId});
+                                if (cursor != null && cursor.moveToFirst()) {
+                                    int fromMe = cursor.getInt(0);
+                                    int msgType = cursor.getInt(1);
+                                    String keyId = cursor.getString(2);
+                                    long chatRowId = cursor.getLong(3);
+                                    cursor.close();
+                                    
+                                    // Block delete only for incoming messages (from_me=0) 
+                                    // that are normal messages (not already type 15)
+                                    if (fromMe == 0 && msgType != 15) {
+                                        XposedBridge.log("WAE: BLOCKED DELETE of incoming message _id=" + msgId + 
+                                            " key=" + keyId + " type=" + msgType);
+                                        recentDeletedIds.add(msgId);
+                                        
+                                        // Record the revocation for UI display (red icon + timestamp)
+                                        try {
+                                            // Resolve phone number from chat_row_id
+                                            // The jid table has columns: _id, user, server, agent, device, type, raw_string
+                                            // We need the 'user' column which contains the phone number
+                                            String phoneNumber = null;
+                                            android.database.Cursor jidCursor = db.rawQuery(
+                                                "SELECT j.user, j.raw_string FROM jid j " +
+                                                "INNER JOIN chat c ON c.jid_row_id = j._id " +
+                                                "WHERE c._id=?",
+                                                new String[]{String.valueOf(chatRowId)});
+                                            if (jidCursor != null && jidCursor.moveToFirst()) {
+                                                phoneNumber = jidCursor.getString(0); // user column = phone number
+                                                String rawString = jidCursor.getString(1);
+                                                jidCursor.close();
+                                                XposedBridge.log("WAE: JID resolved: user=" + phoneNumber + " raw=" + rawString);
+                                                // Fallback: if user column is empty, parse from raw_string
+                                                if (phoneNumber == null || phoneNumber.isEmpty()) {
+                                                    if (rawString != null && rawString.contains("@")) {
+                                                        phoneNumber = rawString.substring(0, rawString.indexOf("@"));
+                                                    }
+                                                }
+                                            } else if (jidCursor != null) {
+                                                jidCursor.close();
+                                            }
+                                            
+                                            if (keyId != null) {
+                                                long now = System.currentTimeMillis();
+                                                
+                                                // Store in global key-based map (always works regardless of JID format)
+                                                revokedKeyIds.put(keyId, now);
+                                                
+                                                // Also try phone-number-based storage for backward compatibility
+                                                if (phoneNumber != null) {
+                                                    DelMessageStore.getInstance(Utils.getApplication())
+                                                        .insertMessage(phoneNumber, keyId, now);
+                                                    messageRevokedMap.computeIfAbsent(phoneNumber, k -> 
+                                                        Collections.synchronizedSet(new java.util.HashSet<>())).add(keyId);
+                                                }
+                                                
+                                                XposedBridge.log("WAE: Recorded revocation: key=" + keyId + " jid=" + phoneNumber);
+                                                
+                                                // Refresh the conversation UI if it's currently open
+                                                try {
+                                                    var mConversation = WppCore.getCurrentConversation();
+                                                    if (mConversation != null) {
+                                                        mConversation.runOnUiThread(() -> {
+                                                            if (mConversation.hasWindowFocus()) {
+                                                                mConversation.startActivity(mConversation.getIntent());
+                                                                mConversation.overridePendingTransition(0, 0);
+                                                            }
+                                                        });
+                                                    }
+                                                } catch (Exception ignored) {}
+                                            }
+                                        } catch (Exception e) {
+                                            XposedBridge.log("WAE: Error recording revocation: " + e.getMessage());
+                                        }
+                                        
+                                        param.setResult(0); // Block the delete
+                                        return;
+                                    }
+                                } else if (cursor != null) {
+                                    cursor.close();
+                                }
+                            } catch (Exception e) {
+                                XposedBridge.log("WAE: Error checking message before delete: " + e.getMessage());
+                            }
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            });
+
+            // HOOK 2: Block INSERT of message_type=15 records (the "deleted" placeholder).
+            // This is step 2 of WhatsApp's revocation — it inserts a new row with type=15.
+            XposedBridge.hookAllMethods(android.database.sqlite.SQLiteDatabase.class, "insertWithOnConflict", new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) {
+                    try {
+                        String table = (String) param.args[0];
+                        if (!"message".equals(table)) return;
+                        
+                        android.content.ContentValues cv = (android.content.ContentValues) param.args[2];
+                        if (cv == null) return;
+                        
+                        Integer msgType = cv.getAsInteger("message_type");
+                        Integer fromMe = cv.getAsInteger("from_me");
+                        
+                        // Block insertion of revocation placeholders (type=15) for incoming messages
+                        if (msgType != null && msgType == 15 && fromMe != null && fromMe == 0) {
+                            String keyId = cv.getAsString("key_id");
+                            XposedBridge.log("WAE: BLOCKED INSERT of revocation placeholder type=15 key=" + keyId);
+                            param.setResult(-1L); // Return fake row ID, block the insert
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            });
+
+            XposedBridge.log("WAE: Anti-revoke SQL hooks installed successfully");
+        } catch (Exception e) {
+            XposedBridge.log("WAE: Failed to install anti-revoke SQL hooks: " + e.getMessage());
+        }
+    }
+
 
     private static String stringMessageDeleted;
     private static int antirevokeVal = -1;
@@ -202,51 +377,115 @@ public class AntiRevoke extends Feature {
         var messageRevokedList = getRevokedMessagesForJid(fMessage);
         var id = fMessage.getRowId();
         String keyOrig = null;
-        if (messageRevokedList.contains(key.messageID)
-                || ((keyOrig = MessageStore.getInstance().getOriginalMessageKey(id)) != null
-                        && messageRevokedList.contains(keyOrig))) {
-            var timestamp = DelMessageStore.getInstance(Utils.getApplication())
+
+        if (stringMessageDeleted == null) {
+            stringMessageDeleted = UnobfuscatorCache.getInstance().getString("messagedeleted");
+        }
+        if (antirevokeVal == -1) {
+            antirevokeVal = Integer.parseInt(prefs.getString("antirevoke", "0"));
+        }
+        if (antirevokeStatusVal == -1) {
+            antirevokeStatusVal = Integer.parseInt(prefs.getString("antirevokestatus", "0"));
+        }
+        int antirevokeValue = antirevokeType.equals("antirevoke") ? antirevokeVal : antirevokeStatusVal;
+
+        // Resolve the timestamp directly by key_id, which bypasses the JID mismatch
+        long timestamp = 0;
+        Long globalTs = revokedKeyIds.get(key.messageID);
+        if (globalTs == null && keyOrig != null) globalTs = revokedKeyIds.get(keyOrig);
+        
+        if (globalTs != null) {
+            timestamp = globalTs;
+        } else {
+            timestamp = DelMessageStore.getInstance(Utils.getApplication())
                     .getTimestampByMessageId(keyOrig == null ? key.messageID : keyOrig);
+        }
+
+        // Check both JID-based map AND global key_id map AND DB timestamp
+        boolean isRevoked = timestamp > 0
+                || messageRevokedList.contains(key.messageID)
+                || revokedKeyIds.containsKey(key.messageID)
+                || (keyOrig != null && (messageRevokedList.contains(keyOrig) || revokedKeyIds.containsKey(keyOrig)));
+
+        ViewGroup parent = (ViewGroup) dateTextView.getParent();
+        if (parent == null) return;
+
+        if (isRevoked) {
+            String toastMsg = "";
             if (timestamp > 0) {
                 var date = Objects.requireNonNull(DATE_FORMAT_THREAD_LOCAL.get()).format(new Date(timestamp));
-                dateTextView.getPaint().setUnderlineText(true);
-                dateTextView.setOnClickListener(v -> Utils.showToast(
-                        String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.message_removed_on), date),
-                        Toast.LENGTH_LONG));
+                String toastFormat = com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.message_removed_on);
+                if (toastFormat == null || toastFormat.isEmpty() || toastFormat.equals("null") || !toastFormat.contains("%s")) {
+                    toastFormat = "Deleted on: %s"; // Fallback if resource is missing
+                }
+                toastMsg = String.format(toastFormat, date);
             }
 
-            if (stringMessageDeleted == null) {
-                stringMessageDeleted = UnobfuscatorCache.getInstance().getString("messagedeleted");
-            }
-            if (antirevokeVal == -1) {
-                antirevokeVal = Integer.parseInt(prefs.getString("antirevoke", "0"));
-            }
-            if (antirevokeStatusVal == -1) {
-                antirevokeStatusVal = Integer.parseInt(prefs.getString("antirevokestatus", "0"));
+            android.view.View indicator = parent.findViewWithTag("wae_revoke_indicator");
+            if (indicator == null) {
+                if (antirevokeValue == 1) { // Text indicator
+                    indicator = new android.widget.TextView(dateTextView.getContext());
+                    ((android.widget.TextView) indicator).setText(stringMessageDeleted != null ? stringMessageDeleted : "Deleted");
+                    ((android.widget.TextView) indicator).setTextColor(dateTextView.getCurrentTextColor());
+                    ((android.widget.TextView) indicator).setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, dateTextView.getTextSize());
+                } else { // Icon indicator
+                    indicator = new android.widget.ImageView(dateTextView.getContext());
+                    ((android.widget.ImageView) indicator).setImageDrawable(com.waenhancer.xposed.utils.DesignUtils.getDrawable(R.drawable.deleted));
+                }
+                indicator.setTag("wae_revoke_indicator");
+                
+                // Add right margin/padding
+                if (indicator instanceof android.widget.TextView) {
+                    indicator.setPadding(0, 0, 10, 0);
+                } else {
+                    indicator.setPadding(0, 0, 8, 0);
+                }
+                
+                // Add to parent, right before the dateTextView
+                if (parent instanceof android.widget.LinearLayout) {
+                    int index = parent.indexOfChild(dateTextView);
+                    parent.addView(indicator, index);
+                } else {
+                    parent.addView(indicator); // Fallback
+                }
             }
 
-            int antirevokeValue = antirevokeType.equals("antirevoke") ? antirevokeVal : antirevokeStatusVal;
-            if (antirevokeValue == 1) {
-                var newTextData = stringMessageDeleted + " | "
-                        + dateTextView.getText();
-                dateTextView.setText(newTextData);
-            } else if (antirevokeValue == 2) {
-                var drawable = com.waenhancer.xposed.utils.DesignUtils.getDrawable(R.drawable.deleted);
-                dateTextView.setCompoundDrawablesWithIntrinsicBounds(null, null, drawable, null);
-                dateTextView.setCompoundDrawablePadding(5);
+            indicator.setVisibility(android.view.View.VISIBLE);
+            
+            if (!toastMsg.isEmpty()) {
+                final String finalToast = toastMsg;
+                indicator.setOnClickListener(v -> Utils.showToast(finalToast, Toast.LENGTH_LONG));
+            } else {
+                indicator.setOnClickListener(null);
             }
-        } else {
+
+            // Cleanup old inline modifications from dateTextView (if any remain)
             dateTextView.setCompoundDrawables(null, null, null, null);
-            if (stringMessageDeleted == null) {
-                stringMessageDeleted = UnobfuscatorCache.getInstance().getString("messagedeleted");
-            }
-            var revokeNotice = stringMessageDeleted + " | ";
+            dateTextView.getPaint().setUnderlineText(false);
+            dateTextView.setOnClickListener(null);
+            var revokeNotice = (stringMessageDeleted != null ? stringMessageDeleted : "Deleted") + " | ";
             var dateText = dateTextView.getText().toString();
             if (dateText.contains(revokeNotice)) {
                 dateTextView.setText(dateText.replace(revokeNotice, ""));
             }
+
+        } else {
+            // Un-revoke or non-revoked message
+            android.view.View indicator = parent.findViewWithTag("wae_revoke_indicator");
+            if (indicator != null) {
+                indicator.setVisibility(android.view.View.GONE);
+                indicator.setOnClickListener(null);
+            }
+
+            // Cleanup old inline modifications
+            dateTextView.setCompoundDrawables(null, null, null, null);
             dateTextView.getPaint().setUnderlineText(false);
             dateTextView.setOnClickListener(null);
+            var revokeNotice = (stringMessageDeleted != null ? stringMessageDeleted : "Deleted") + " | ";
+            var dateText = dateTextView.getText().toString();
+            if (dateText.contains(revokeNotice)) {
+                dateTextView.setText(dateText.replace(revokeNotice, ""));
+            }
         }
     }
 
