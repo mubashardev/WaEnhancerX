@@ -516,7 +516,8 @@ public class ReflectionUtils {
             if (debug) {
                 XposedBridge.log("[WAE-DEBUG] Scanning class level: " + currentClass.getName());
             }
-            for (Field field : currentClass.getDeclaredFields()) {
+            List<Field> fields = getCachedDeclaredFields(currentClass);
+            for (Field field : fields) {
                 if (field.getType().isPrimitive() || field.getType().getName().startsWith("java.") || field.getType().getName().startsWith("android.")) {
                     continue;
                 }
@@ -527,7 +528,7 @@ public class ReflectionUtils {
                         XposedBridge.log("[WAE-DEBUG] Field: " + field.getName() + " (" + field.getType().getName() + ") = " + (nestedObj != null ? nestedObj.getClass().getName() : "null"));
                         if (nestedObj != null && nestedObj.getClass().getName().contains("8gx")) {
                             XposedBridge.log("[WAE-DEBUG] Dumping fields of 8gx class:");
-                            for (Field f : nestedObj.getClass().getDeclaredFields()) {
+                            for (Field f : getCachedDeclaredFields(nestedObj.getClass())) {
                                 f.setAccessible(true);
                                 try {
                                     XposedBridge.log("[WAE-DEBUG]   8gx Field: " + f.getName() + " (" + f.getType().getName() + ") = " + f.get(nestedObj));
@@ -560,7 +561,7 @@ public class ReflectionUtils {
                             }
                         }
                         // Check fields of nestedObj for any Key (type-based OR toString-based)
-                        for (Field nestedKeyField : nestedObj.getClass().getDeclaredFields()) {
+                        for (Field nestedKeyField : getCachedDeclaredFields(nestedObj.getClass())) {
                             nestedKeyField.setAccessible(true);
                             try {
                                 Object val = nestedKeyField.get(nestedObj);
@@ -622,8 +623,20 @@ public class ReflectionUtils {
                 Object match = findFMessageInObject(item, fMessageClass, keyClass, classLoader, visited, depth + 1);
                 if (match != null) return match;
             }
-        }
-
         return null;
     }
+
+    private static final java.util.concurrent.ConcurrentHashMap<Class<?>, List<Field>> declaredFieldsCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static List<Field> getCachedDeclaredFields(Class<?> clazz) {
+        if (clazz == null) return Collections.emptyList();
+        return declaredFieldsCache.computeIfAbsent(clazz, c -> {
+            try {
+                return Arrays.asList(c.getDeclaredFields());
+            } catch (Throwable t) {
+                return Collections.emptyList();
+            }
+        });
+    }
+
 }

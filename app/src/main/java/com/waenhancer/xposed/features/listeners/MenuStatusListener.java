@@ -131,19 +131,30 @@ public class MenuStatusListener extends Feature {
         }
     }
 
+    private static final java.util.concurrent.ConcurrentHashMap<Class<?>, List<Field>> classFieldsCache = new java.util.concurrent.ConcurrentHashMap<>();
+
     private List<Object> getAllFieldValues(Object instance) {
         if (instance == null) return List.of();
-        List<Object> values = new ArrayList<>();
-        Class<?> current = instance.getClass();
-        while (current != null && current != Object.class) {
-            for (Field field : current.getDeclaredFields()) {
-                field.setAccessible(true);
-                Object value = ReflectionUtils.getObjectField(field, instance);
-                if (value != null) {
-                    values.add(value);
+        
+        List<Field> fields = classFieldsCache.computeIfAbsent(instance.getClass(), clazz -> {
+            List<Field> list = new ArrayList<>();
+            Class<?> current = clazz;
+            while (current != null && current != Object.class) {
+                for (Field field : current.getDeclaredFields()) {
+                    field.setAccessible(true);
+                    list.add(field);
                 }
+                current = current.getSuperclass();
             }
-            current = current.getSuperclass();
+            return list;
+        });
+
+        List<Object> values = new ArrayList<>();
+        for (Field field : fields) {
+            Object value = ReflectionUtils.getObjectField(field, instance);
+            if (value != null) {
+                values.add(value);
+            }
         }
         return values;
     }

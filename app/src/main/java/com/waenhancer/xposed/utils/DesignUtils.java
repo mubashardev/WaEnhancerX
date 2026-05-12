@@ -31,11 +31,21 @@ public class DesignUtils {
 
     private static SharedPreferences mPrefs;
 
+    private static final java.util.concurrent.ConcurrentHashMap<Integer, Drawable.ConstantState> drawableCache = new java.util.concurrent.ConcurrentHashMap<>();
+
     @SuppressLint("UseCompatLoadingForDrawables")
     public static Drawable getDrawable(int id) {
         try {
             if ((id & 0xFF000000) == 0x7F000000 && XResManager.moduleResources != null) {
-                return XResManager.moduleResources.getDrawable(id, null);
+                Drawable.ConstantState cachedState = drawableCache.get(id);
+                if (cachedState != null) {
+                    return cachedState.newDrawable().mutate();
+                }
+                Drawable drawable = XResManager.moduleResources.getDrawable(id, null);
+                if (drawable != null && drawable.getConstantState() != null) {
+                    drawableCache.put(id, drawable.getConstantState());
+                }
+                return drawable;
             }
         } catch (Throwable ignored) {}
         return Utils.getApplication().getDrawable(id);
