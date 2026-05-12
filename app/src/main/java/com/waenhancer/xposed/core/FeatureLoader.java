@@ -406,7 +406,9 @@ public class FeatureLoader {
                 activity.getWindow().getDecorView().post(() -> {
                     try {
                         String activityName = activity.getClass().getSimpleName();
-                        XposedBridge.log("[WAE] Activity RESUMED: " + activityName);
+                        String fullName = activity.getClass().getName();
+                        String superName = activity.getClass().getSuperclass() != null ? activity.getClass().getSuperclass().getName() : "null";
+                        XposedBridge.log("[WAE] Activity RESUMED: " + activityName + " (Full Class Name: " + fullName + " | Superclass: " + superName + ")");
                         
                         // Record screen view in analytics
                         com.waenhancer.utils.AnalyticsManager.logScreenView(activity, activityName);

@@ -69,7 +69,7 @@ public class AntiRevoke extends Feature {
         if (field != null)
             return field.get(param.args[0]);
 
-        var field1 = ReflectionUtils.findFieldUsingFilter(param.args[0].getClass(),
+        var field1 = ReflectionUtils.findFieldUsingFilterIfExists(param.args[0].getClass(),
                 f -> f.getType() == FMessageWpp.Key.TYPE);
         if (field1 != null) {
             var key = field1.get(param.args[0]);

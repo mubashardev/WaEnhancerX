@@ -809,6 +809,16 @@ public class Unobfuscator {
             var methods = dexkit.findMethod(new FindMethod().matcher(new MethodMatcher().addUsingNumber(id)));
             if (methods.isEmpty())
                 throw new Exception("MenuStatus method not found");
+            
+            // Filter out click handlers (which take a MenuItem parameter)
+            for (var methodData : methods) {
+                var method = methodData.getMethodInstance(loader);
+                Class<?>[] params = method.getParameterTypes();
+                boolean isClickHandler = params.length == 1 && params[0].getName().equals("android.view.MenuItem");
+                if (!isClickHandler) {
+                    return method;
+                }
+            }
             return methods.get(0).getMethodInstance(loader);
         });
     }

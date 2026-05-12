@@ -139,6 +139,16 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
 
                 if (Boolean.TRUE.equals(inResourceHook.get())) return;
 
+                // Verify the call actually originates from the module to avoid WhatsApp ID collisions
+                boolean isFromModule = false;
+                for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+                    if (element.getClassName().startsWith("com.waenhancer.")) {
+                        isFromModule = true;
+                        break;
+                    }
+                }
+                if (!isFromModule) return;
+
                 inResourceHook.set(true);
                 try {
                     int translatedId = XResManager.getHostId(id);
