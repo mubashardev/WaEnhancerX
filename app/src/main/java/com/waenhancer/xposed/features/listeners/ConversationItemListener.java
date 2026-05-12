@@ -13,7 +13,6 @@ import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.components.FMessageWpp;
 
 import java.util.HashSet;
-import java.util.Objects;
 
 import de.robv.android.xposed.XC_MethodHook;
 import android.content.SharedPreferences;
@@ -61,8 +60,6 @@ public class ConversationItemListener extends Feature {
                         Object fMessageObj = mAdapter.getItem(position);
                         if (fMessageObj == null) return;
                         var fMessage = new FMessageWpp(fMessageObj);
-                        var extraFMessage = XposedHelpers.getAdditionalInstanceField(viewGroup, "fMessage");
-                        if (Objects.equals(fMessage, extraFMessage)) return;
                         for (OnConversationItemListener listener : conversationListeners) {
                             listener.onItemBind(fMessage, viewGroup);
                         }

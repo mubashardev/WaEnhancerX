@@ -210,7 +210,7 @@ public class AntiRevoke extends Feature {
             if (timestamp > 0) {
                 var date = Objects.requireNonNull(DATE_FORMAT_THREAD_LOCAL.get()).format(new Date(timestamp));
                 dateTextView.getPaint().setUnderlineText(true);
-                dateTextView.setOnClickListener(v -> Utils.showToast(
+                Utils.setViewClickListener(dateTextView, "antirevoke", v -> Utils.showToast(
                         String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.message_removed_on), date),
                         Toast.LENGTH_LONG));
             }
@@ -246,7 +246,7 @@ public class AntiRevoke extends Feature {
                 dateTextView.setText(dateText.replace(revokeNotice, ""));
             }
             dateTextView.getPaint().setUnderlineText(false);
-            dateTextView.setOnClickListener(null);
+            Utils.setViewClickListener(dateTextView, "antirevoke", null);
         }
     }
 

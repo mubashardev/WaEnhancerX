@@ -56,9 +56,7 @@ import okhttp3.OkHttpClient;
 public class Others extends Feature {
     private static final String DEVICE_SOURCE_SUFFIX_FIELD = "wae_device_source_suffix";
     private static final String DEVICE_SOURCE_GUARD_FIELD = "wae_device_source_guard";
-    private static final String DEVICE_SOURCE_CLICK_WRAPPER_FIELD = "wae_device_source_click_wrapper";
-    private static final String DEVICE_SOURCE_CLICK_ORIGINAL_FIELD = "wae_device_source_click_original";
-    private static final String DEVICE_SOURCE_CLICK_DEVICE_ID_FIELD = "wae_device_source_click_device_id";
+
 
     private static java.lang.reflect.Field cachedAbsViewField;
     private static final Set<String> dumpedMessageIds = ConcurrentHashMap.newKeySet();
@@ -616,57 +614,21 @@ public class Others extends Feature {
 
     private void bindMessageDeviceSourceClick(TextView textView, int deviceId) {
         if (deviceId < 0) {
-            Object wrapper = XposedHelpers.getAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_WRAPPER_FIELD);
-            if (wrapper instanceof View.OnClickListener) {
-                Object original = XposedHelpers.getAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_ORIGINAL_FIELD);
-                textView.setOnClickListener(original instanceof View.OnClickListener ? (View.OnClickListener) original : null);
-            }
-            XposedHelpers.removeAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_WRAPPER_FIELD);
-            XposedHelpers.removeAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_ORIGINAL_FIELD);
-            XposedHelpers.removeAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_DEVICE_ID_FIELD);
+            Utils.setViewClickListener(textView, "device_source", null);
             return;
         }
 
-        XposedHelpers.setAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_DEVICE_ID_FIELD, deviceId);
-
-        View.OnClickListener existingListener = getCurrentClickListener(textView);
-        Object currentWrapper = XposedHelpers.getAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_WRAPPER_FIELD);
-        if (existingListener != null && existingListener != currentWrapper) {
-            XposedHelpers.setAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_ORIGINAL_FIELD, existingListener);
-        }
-
-        View.OnClickListener[] wrapperRefHolder = new View.OnClickListener[1];
-        View.OnClickListener wrapper = v -> {
-            Object value = XposedHelpers.getAdditionalInstanceField(v, DEVICE_SOURCE_CLICK_DEVICE_ID_FIELD);
-            int currentDeviceId = value instanceof Integer ? (Integer) value : -1;
-            if (currentDeviceId == 0) {
+        Utils.setViewClickListener(textView, "device_source", v -> {
+            if (deviceId == 0) {
                 Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(
                         R.string.message_sent_via_phone,
                         "This message was sent via Phone"), Toast.LENGTH_SHORT);
-            } else if (currentDeviceId > 0) {
+            } else if (deviceId > 0) {
                 Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(
                         R.string.message_sent_via_linked_device,
                         "This message was sent a via Linked Device (Desktop/Phone)"), Toast.LENGTH_SHORT);
             }
-
-            Object original = XposedHelpers.getAdditionalInstanceField(v, DEVICE_SOURCE_CLICK_ORIGINAL_FIELD);
-            if (original instanceof View.OnClickListener originalListener && originalListener != wrapperRefHolder[0]) {
-                originalListener.onClick(v);
-            }
-        };
-        wrapperRefHolder[0] = wrapper;
-        XposedHelpers.setAdditionalInstanceField(textView, DEVICE_SOURCE_CLICK_WRAPPER_FIELD, wrapper);
-        textView.setOnClickListener(wrapper);
-    }
-
-    private View.OnClickListener getCurrentClickListener(View view) {
-        try {
-            Object listenerInfo = XposedHelpers.callMethod(view, "getListenerInfo");
-            if (listenerInfo == null) return null;
-            return (View.OnClickListener) XposedHelpers.getObjectField(listenerInfo, "mOnClickListener");
-        } catch (Throwable ignored) {
-            return null;
-        }
+        });
     }
 
     private String dumpRowTextViews(ViewGroup root) {

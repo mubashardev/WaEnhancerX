@@ -8,4 +8,5 @@
 [Fixes]
 - Fixed Status Download/Share in WA/WB v2.26.18
 - Fixed empty toast for Contact Online
+- Fixed Edit History not showing
 - Fixed Custom Privacy Per Contact 

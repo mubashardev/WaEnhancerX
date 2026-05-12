@@ -142,9 +142,18 @@ public class FMessageWpp {
 
     public Key getOriginalKey() {
         try {
-            return new Key(getOriginalMessageKey.invoke(fmessage), this);
+            if (getOriginalMessageKey == null) return null;
+            Object origKeyObj;
+            if (getOriginalMessageKey.getParameterCount() == 1) {
+                origKeyObj = getOriginalMessageKey.invoke(null, fmessage);
+            } else {
+                origKeyObj = getOriginalMessageKey.invoke(fmessage);
+            }
+            if (origKeyObj == null) return null;
+            return new Key(origKeyObj, this);
         } catch (Exception e) {
-            XposedBridge.log(e);
+            XposedBridge.log("[WAE] Error invoking getOriginalMessageKey: " + e.getMessage());
+            e.printStackTrace();
         }
         return null;
     }
