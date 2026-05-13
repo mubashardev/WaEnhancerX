@@ -102,7 +102,7 @@ public class FileReaderPreference extends Preference implements Preference.OnPre
         FilePicker.setOnFilePickedListener(this);
         FilePicker.setOnUriPickedListener(this);
         if (FilePicker.fileCapture == null) {
-            Toast.makeText(getContext(), "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(getContext(), "Please use the standalone WaEnhancerX app for file operations.", Toast.LENGTH_SHORT).show();
             return true;
         }
         FilePicker.fileCapture.launch(XML_MIME_TYPE);

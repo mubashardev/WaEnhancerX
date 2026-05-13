@@ -71,6 +71,8 @@ public class WppCore {
     private static Field meManagerPhoneJidField;
     private static Object meManagerInstance;
     private static Object mConversationDelegate;
+    private static Method statusToMessageMethod;
+    private static Object statusToMessageMapper;
 
     public static void Initialize(ClassLoader loader, android.content.SharedPreferences pref) throws Exception {
         waePrefs = pref;
@@ -136,7 +138,9 @@ public class WppCore {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                     mConversationDelegate = param.thisObject;
-                    XposedBridge.log("WAE: Captured conversation delegate: " + mConversationDelegate.getClass().getName());
+                    if (Utils.DEBUG) {
+                        ;
+                    }
                 }
             });
         }
@@ -144,6 +148,7 @@ public class WppCore {
 
         // Load wa database
         loadWADatabase();
+        hookStatusToMessageMapper(loader);
 
         if (!pref.getBoolean("lite_mode", false)) {
             CompletableFuture.runAsync(() -> {
@@ -223,7 +228,9 @@ public class WppCore {
 
     private static boolean tryConnectBridge(BaseClient baseClient) throws Exception {
         try {
-            XposedBridge.log("Trying to connect to " + baseClient.getClass().getSimpleName());
+            if (Utils.DEBUG) {
+                ;
+            }
             client = baseClient;
             CompletableFuture<Boolean> canLoadFuture = baseClient.connect();
             Boolean canLoad = canLoadFuture.get();
@@ -235,23 +242,28 @@ public class WppCore {
         return true;
     }
 
-    public static void sendMessage(Object userJidRaw, String message) {
+    public static boolean sendMessage(Object userJidRaw, String message) {
         try {
             // Get the JID raw string from the Jid object
             String jidRawString = (String) XposedHelpers.callMethod(userJidRaw, "getRawString");
             if (jidRawString == null) {
-                XposedBridge.log("WppCore.sendMessage - could not get rawString from jid: " + userJidRaw);
+                if (Utils.DEBUG) {
+                    ;
+                }
                 Utils.showToast("Error: could not find JID", Toast.LENGTH_SHORT);
-                return;
+                return false;
             }
             // Strip device suffix if LID: e.g. "4306.0:0@lid" -> "4306@lid"
             jidRawString = jidRawString.replaceFirst("\\.[\\d:]+@", "@");
-            XposedBridge.log("WppCore.sendMessage - jidRawString: " + jidRawString);
+            if (Utils.DEBUG) {
+                ;
+            }
 
-            sendMessage(jidRawString, message);
+            return sendMessage(jidRawString, message);
         } catch (Exception e) {
             XposedBridge.log("WppCore.sendMessage(Object) failed: " + e);
             Utils.showToast("Error in sending message: " + e.getMessage(), Toast.LENGTH_SHORT);
+            return false;
         }
     }
 
@@ -291,21 +303,23 @@ public class WppCore {
                         }
                         android.app.RemoteInput.addResultsToIntent(remoteInputs, fillIn, results);
                         action.actionIntent.send(Utils.getApplication(), 0, fillIn);
-                        XposedBridge.log(
-                                "WppCore.sendMessageViaNotification - sent to [" + contactName + "] via RemoteInput!");
+                        if (Utils.DEBUG) {
+                            ;
+                        }
                         return true;
                     }
                 }
             }
-            XposedBridge.log("WppCore.sendMessageViaNotification - no WA notification with title=[" + contactName
-                    + "]. Total=" + notifications.length);
+            if (Utils.DEBUG) {
+                ;
+            }
         } catch (Exception e) {
             XposedBridge.log("WppCore.sendMessageViaNotification error: " + e);
         }
         return false;
     }
 
-    public static void sendMessage(String jidOrNumber, String message) {
+    public static boolean sendMessage(String jidOrNumber, String message) {
         try {
             android.app.NotificationManager nm = (android.app.NotificationManager) Utils.getApplication()
                     .getSystemService(Context.NOTIFICATION_SERVICE);
@@ -334,14 +348,20 @@ public class WppCore {
                         }
                         android.app.RemoteInput.addResultsToIntent(remoteInputs, fillIn, results);
                         action.actionIntent.send(Utils.getApplication(), 0, fillIn);
-                        XposedBridge.log("WppCore.sendMessage - sent via RemoteInput (jid match)!");
-                        return;
+                        if (Utils.DEBUG) {
+                            ;
+                        }
+                        return true;
                     }
                 }
             }
-            XposedBridge.log("WppCore.sendMessage - no matching WA notification for jid=" + jidOrNumber);
+            if (Utils.DEBUG) {
+                ;
+            }
+            return false;
         } catch (Exception e) {
             XposedBridge.log("WppCore.sendMessage error: " + e);
+            return false;
         }
     }
 
@@ -390,7 +410,9 @@ public class WppCore {
         }
         try {
             actionUser = Unobfuscator.loadActionUser(loader);
-            XposedBridge.log("ActionUser: " + actionUser.getName());
+            if (Utils.DEBUG) {
+                ;
+            }
             XposedBridge.hookAllConstructors(actionUser, new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -409,11 +431,14 @@ public class WppCore {
                             for (var f : oneKs.getClass().getDeclaredFields()) {
                                 f.setAccessible(true);
                                 Object val = f.get(oneKs);
-                                XposedBridge.log("WppCore.A00-hook: 1Ks." + f.getName() + " = " + val
-                                        + " [class=" + (val == null ? "null" : val.getClass().getName()) + "]");
+                                if (Utils.DEBUG) {
+                                    ;
+                                }
                             }
                         }
-                        XposedBridge.log("WppCore.A00-hook: message arg = " + param.args[1]);
+                        if (Utils.DEBUG) {
+                            ;
+                        }
                     }
                 });
             }
@@ -636,7 +661,7 @@ public class WppCore {
             return null;
         try {
             if (mCachedMessageStore == null) {
-                XposedBridge.log("CachedMessageStore is null");
+                ;
                 return null;
             }
             return cachedMessageStoreKey.invoke(mCachedMessageStore, messageKey);
@@ -721,7 +746,9 @@ public class WppCore {
                 var jid = new FMessageWpp.UserJid(jidObject);
                 cachedUserJid = jid;
                 cachedActivityHash = currentHash;
-                XposedBridge.log("WAE: Resolved JID " + jid.getPhoneNumber() + " in " + (System.currentTimeMillis() - start) + "ms");
+                if (Utils.DEBUG) {
+                    ;
+                }
                 return jid;
             }
         } catch (Exception e) {
@@ -735,11 +762,15 @@ public class WppCore {
             return;
         }
         long start = System.currentTimeMillis();
-        XposedBridge.log("WAE: ensureConversationJidResolvers started");
+        if (Utils.DEBUG) {
+            ;
+        }
         try {
             if (conversationDelegateField == null) {
                 conversationDelegateField = Unobfuscator.loadConversationDelegateField(loader);
-                XposedBridge.log("WAE: conversationDelegateField found: " + (conversationDelegateField != null));
+                if (Utils.DEBUG) {
+                    ;
+                }
             }
         } catch (Exception e) {
             XposedBridge.log("WAE: Error loading conversationDelegateField: " + e.getMessage());
@@ -747,12 +778,16 @@ public class WppCore {
         try {
             if (conversationJidField == null) {
                 conversationJidField = Unobfuscator.loadUserJidConversationDelegate(loader);
-                XposedBridge.log("WAE: conversationJidField found: " + (conversationJidField != null));
+                if (Utils.DEBUG) {
+                    ;
+                }
             }
         } catch (Exception e) {
             XposedBridge.log("WAE: Error loading conversationJidField: " + e.getMessage());
         }
-        XposedBridge.log("WAE: ensureConversationJidResolvers finished in " + (System.currentTimeMillis() - start) + "ms");
+        if (Utils.DEBUG) {
+            XposedBridge.log("WAE: ensureConversationJidResolvers finished in " + (System.currentTimeMillis() - start) + "ms");
+        }
     }
 
     @Nullable
@@ -910,12 +945,27 @@ public class WppCore {
     }
 
     public static File getContactPhotoFile(String jid) {
-        String datafolder = Utils.getApplication().getCacheDir().getParent() + "/";
-        File file = new File(datafolder + "/cache/" + "Profile Pictures" + "/" + stripJID(jid) + ".jpg");
-        if (!file.exists())
-            file = new File(datafolder + "files" + "/" + "Avatars" + "/" + jid + ".j");
-        if (file.exists())
-            return file;
+        if (jid == null) return null;
+        String datafolder = Utils.getApplication().getFilesDir().getParent() + "/";
+        String bareJid = stripJID(jid);
+        
+        // Try Profile Pictures cache (uses bare JID)
+        File file = new File(datafolder + "cache/Profile Pictures/" + bareJid + ".jpg");
+        if (file.exists()) return file;
+        
+        // Try Avatars folder (uses FULL JID)
+        file = new File(datafolder + "files/Avatars/" + jid + ".j");
+        if (file.exists()) return file;
+        
+        // Try me photo if it's our own JID
+        if (jid.equals(Utils.getMyNumber())) {
+            file = new File(datafolder + "files/me");
+            if (file.exists()) return file;
+            file = new File(datafolder + "files/me.jpg");
+            if (file.exists()) return file;
+        }
+
+        ;
         return null;
     }
 
@@ -1023,6 +1073,16 @@ public class WppCore {
         return privPrefs.getString(key, defaultValue);
     }
 
+    public static void setPrivLong(String key, long value) {
+        if (privPrefs == null) return;
+        privPrefs.edit().putLong(key, value).apply();
+    }
+
+    public static long getPrivLong(String key, long defaultValue) {
+        if (privPrefs == null) return defaultValue;
+        return privPrefs.getLong(key, defaultValue);
+    }
+
     public static JSONObject getPrivJSON(String key, JSONObject defaultValue) {
         var jsonStr = privPrefs.getString(key, null);
         if (jsonStr == null)
@@ -1072,7 +1132,7 @@ public class WppCore {
                     if (client == null) {
                         throw new Exception("Bridge client not initialized");
                     }
-                    XposedBridge.log("Bridge disconnected. Trying automatic synchronous reconnect");
+                    ;
                     boolean reconnected = false;
                     try {
                         reconnected = Boolean.TRUE.equals(client.connect().get(4, TimeUnit.SECONDS));
@@ -1122,6 +1182,45 @@ public class WppCore {
             XposedBridge.log(e);
         }
         return null;
+    }
+
+    private static void hookStatusToMessageMapper(ClassLoader loader) {
+        try {
+            statusToMessageMethod = Unobfuscator.loadFStatusToFMessage(loader);
+            XposedBridge.hookAllConstructors(statusToMessageMethod.getDeclaringClass(), new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    statusToMessageMapper = param.thisObject;
+                }
+            });
+        } catch (Exception e) {
+            XposedBridge.log("WAE: hookStatusToMessageMapper failed: " + e.getMessage());
+        }
+    }
+
+    public static Object getFMessageFromFStatus(Object status) {
+        if (status == null) return null;
+        try {
+            ensureStatusToMessageMapperCreated();
+            Object mapper = statusToMessageMapper;
+            Method method = statusToMessageMethod;
+            if (mapper == null || method == null) {
+                return null;
+            }
+            return method.invoke(mapper, status);
+        } catch (Exception e) {
+            XposedBridge.log(e);
+            return null;
+        }
+    }
+
+    private static void ensureStatusToMessageMapperCreated() {
+        if (statusToMessageMapper == null && statusToMessageMethod != null) {
+            try {
+                statusToMessageMethod.getDeclaringClass().getDeclaredConstructor().newInstance();
+            } catch (Exception ignored) {
+            }
+        }
     }
 
     public interface ActivityChangeState {

@@ -29,7 +29,7 @@ public class XResManager {
         }
 
         // Fast check: is it one of our resources?
-        if (!validModuleIds.isEmpty() && !validModuleIds.contains(moduleId)) {
+        if (validModuleIds.isEmpty() || !validModuleIds.contains(moduleId)) {
             return moduleId;
         }
 
@@ -42,7 +42,7 @@ public class XResManager {
         if (hostResources != null && moduleResources != null) {
             try {
                 if (!(hostResources instanceof android.content.res.XResources)) {
-                    // XposedBridge.log("[WAE] XResManager: hostResources is not XResources yet!");
+                    // ;
                     return moduleId;
                 }
                 // Use reflection since hostResources is android.content.res.Resources at compile time
@@ -54,7 +54,9 @@ public class XResManager {
                     return newHostId;
                 }
             } catch (Throwable t) {
-                XposedBridge.log("[WAE] XResManager: addResource failed: " + t.getMessage());
+                if (Utils.DEBUG) {
+                    XposedBridge.log("[WAE] XResManager: addResource failed: " + t.getMessage());
+                }
             }
         }
 

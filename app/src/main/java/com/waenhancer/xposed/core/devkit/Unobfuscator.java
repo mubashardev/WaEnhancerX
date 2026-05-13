@@ -24,6 +24,7 @@ import com.waenhancer.xposed.utils.Utils;
 import org.luckypray.dexkit.DexKitBridge;
 import org.luckypray.dexkit.query.FindClass;
 import org.luckypray.dexkit.query.FindMethod;
+import org.luckypray.dexkit.query.matchers.FieldMatcher;
 import org.luckypray.dexkit.query.enums.OpCodeMatchType;
 import org.luckypray.dexkit.query.enums.StringMatchType;
 import org.luckypray.dexkit.query.matchers.ClassMatcher;
@@ -47,7 +48,12 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -250,13 +256,14 @@ public class Unobfuscator {
                     "jid.DeviceJid");
             var classPhoneUserJid = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith,
                     "jid.PhoneUserJid");
-            
+            var classJid = Unobfuscator.findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "jid.Jid");
+
             // Strategy 1: Broaden param count search (WhatsApp often adds params)
             var methods = dexkit.findMethod(
                     FindMethod.create()
                             .matcher(MethodMatcher.create()
-                                    .addUsingString("receipt")
-                                    .paramCount(4, 12)));
+                                    .usingStrings(Arrays.asList("receipt", "read", "played"), StringMatchType.Contains, false)
+                                    .paramCount(4, 15)));
 
             for (var method : methods) {
                 var params = method.getParamTypeNames();
@@ -267,13 +274,55 @@ public class Unobfuscator {
             // Strategy 2: Relax JID constraints if no perfect match found
             for (var method : methods) {
                 var params = method.getParamTypeNames();
-                if (params.contains(classDeviceJid.getName()) || params.contains(classPhoneUserJid.getName())) {
-                     // Filter for likely read receipt method: usually returns void and has a String (message ID)
-                     if (method.getReturnType().equals("void") && params.stream().anyMatch(p -> p.equals("java.lang.String"))) {
-                         return method.getMethodInstance(classLoader);
-                     }
+                if (params.contains(classDeviceJid.getName()) || params.contains(classPhoneUserJid.getName()) || params.contains(classJid.getName())) {
+                    // Filter for likely read receipt method: usually returns void and has at least two Strings (message ID and type)
+                    long stringParams = params.stream().filter(p -> p.equals("java.lang.String")).count();
+                    if (method.getReturnType().equals("void") && stringParams >= 2) {
+                        return method.getMethodInstance(classLoader);
+                    }
                 }
             }
+
+            // Strategy 3: Try finding via SendReadReceiptJob (or plural)
+            try {
+                Class<?> jobClass;
+                try {
+                    jobClass = findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "SendReadReceiptJob");
+                } catch (Exception e) {
+                    jobClass = findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "SendReadReceiptsJob");
+                }
+                var jobData = dexkit.getClassData(jobClass);
+                if (jobData != null) {
+                    for (var jobMethod : jobData.getMethods()) {
+                        for (var invoke : jobMethod.getInvokes()) {
+                            var pTypes = invoke.getParamTypeNames();
+                            if (pTypes.contains(classDeviceJid.getName()) || pTypes.contains(classPhoneUserJid.getName()) || pTypes.contains(classJid.getName())) {
+                                if (invoke.getReturnType().equals("void") && pTypes.stream().filter(p -> p.equals("java.lang.String")).count() >= 2) {
+                                    return invoke.getMethodInstance(classLoader);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // Strategy 4: Broad search for methods containing "receipt" and taking JID + 2+ Strings
+            try {
+                var fallbackMethods = dexkit.findMethod(
+                        FindMethod.create()
+                                .matcher(MethodMatcher.create()
+                                        .addUsingString("receipt", StringMatchType.Contains)
+                                        .paramCount(3, 15)));
+                for (var method : fallbackMethods) {
+                    var params = method.getParamTypeNames();
+                    if (params.contains(classJid.getName()) || params.contains(classDeviceJid.getName())) {
+                        long stringsCount = params.stream().filter(p -> p.equals("java.lang.String")).count();
+                        if (stringsCount >= 2) {
+                            return method.getMethodInstance(classLoader);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
 
             throw new NoSuchMethodError("Receipt method not found");
         });
@@ -766,8 +815,26 @@ public class Unobfuscator {
             var methods = dexkit.findMethod(new FindMethod().matcher(new MethodMatcher().addUsingNumber(id)));
             if (methods.isEmpty())
                 throw new Exception("MenuStatus method not found");
+            
+            // Filter out click handlers (which take a MenuItem parameter)
+            for (var methodData : methods) {
+                var method = methodData.getMethodInstance(loader);
+                Class<?>[] params = method.getParameterTypes();
+                boolean isClickHandler = params.length == 1 && params[0].getName().equals("android.view.MenuItem");
+                if (!isClickHandler) {
+                    return method;
+                }
+            }
             return methods.get(0).getMethodInstance(loader);
         });
+    }
+
+    public static Method loadFStatusToFMessage(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> findFirstMethodUsingStrings(
+                classLoader,
+                StringMatchType.Contains,
+                "mapFStatusToFMessageForForwarding"
+        ));
     }
 
     // TODO: Classes and methods to ViewOnce
@@ -947,13 +1014,13 @@ public class Unobfuscator {
     public synchronized static Field loadConversationDelegateField(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getField(loader, () -> {
             long start = System.currentTimeMillis();
-            XposedBridge.log("WAE: Scanning for ConversationDelegateField...");
+            ;
             String[] anchors = {"conversation/createconversation", "conversation/create", "conversation/refresh", "conversation/onCreate"};
             Class<?> conversation = XposedHelpers.findClass("com.whatsapp.Conversation", loader);
             Class<?> conversationFragment = XposedHelpers.findClassIfExists("com.whatsapp.ConversationFragment", loader);
 
             for (String anchor : anchors) {
-                XposedBridge.log("WAE: Trying anchor: " + anchor);
+                ;
                 Class<?>[] classes = findAllClassUsingStrings(loader, StringMatchType.Contains, anchor);
                 if (classes == null) continue;
 
@@ -961,7 +1028,7 @@ public class Unobfuscator {
                     // Try direct field in Conversation
                     Field field = ReflectionUtils.getFieldByExtendType(conversation, clazz);
                     if (field != null) {
-                        XposedBridge.log("WAE: Found via Conversation in " + (System.currentTimeMillis() - start) + "ms");
+                        ;
                         return field;
                     }
 
@@ -969,7 +1036,7 @@ public class Unobfuscator {
                     if (conversationFragment != null) {
                         field = ReflectionUtils.getFieldByExtendType(conversationFragment, clazz);
                         if (field != null) {
-                            XposedBridge.log("WAE: Found via ConversationFragment in " + (System.currentTimeMillis() - start) + "ms");
+                            ;
                             return field;
                         }
                     }
@@ -981,7 +1048,7 @@ public class Unobfuscator {
                             continue;
                         Field field1 = ReflectionUtils.getFieldByExtendType(fType, clazz);
                         if (field1 != null) {
-                            XposedBridge.log("WAE: Found via Conversation nested delegate in " + (System.currentTimeMillis() - start) + "ms");
+                            ;
                             return field1;
                         }
                     }
@@ -1005,19 +1072,19 @@ public class Unobfuscator {
     public synchronized static Field loadUserJidConversationDelegate(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getField(loader, () -> {
             long start = System.currentTimeMillis();
-            XposedBridge.log("WAE: Scanning for UserJidConversationDelegate...");
+            ;
             String[] anchors = {"conversation/createconversation", "conversation/create", "conversation/refresh"};
             Class<?> jidClass = Unobfuscator.findFirstClassUsingName(loader, StringMatchType.EndsWith, "jid.Jid");
 
             for (String anchor : anchors) {
-                XposedBridge.log("WAE: Trying anchor: " + anchor);
+                ;
                 Class<?>[] classes = findAllClassUsingStrings(loader, StringMatchType.Contains, anchor);
                 if (classes == null) continue;
 
                 for (Class<?> clazz : classes) {
                     Field field = ReflectionUtils.getFieldByExtendType(clazz, jidClass);
                     if (field != null) {
-                        XposedBridge.log("WAE: Found UserJidConversationDelegate in " + (System.currentTimeMillis() - start) + "ms");
+                        ;
                         return field;
                     }
                 }
@@ -1027,13 +1094,98 @@ public class Unobfuscator {
     }
 
     public synchronized static Method loadAntiRevokeMessageMethod(ClassLoader loader) throws Exception {
-        return UnobfuscatorCache.getInstance().getMethod(loader, () -> {
-            Method method = findFirstMethodUsingStrings(loader, StringMatchType.Contains, "msgstore/edit/revoke");
-            if (method == null)
-                throw new Exception("AntiRevokeMessage method not found");
-            return method;
+        return findAllAntiRevokeMessageMethods(loader)[0];
+    }
+
+    public synchronized static Method[] findAllAntiRevokeMessageMethods(ClassLoader loader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethods(loader, () -> {
+            Set<Method> methods = new LinkedHashSet<>();
+            String[] anchors = {
+                    "msgstore/edit/revoke",
+                    "msgstore/add/revoke",
+                    "msgstore/add/revoked",
+                    "msgstore/add/revocation",
+                    "CoreMessageStore/revoke",
+                    "CoreMessageStore/revocation",
+                    "CoreMessageStore/revoked",
+                    "RevokeMessageStore/revoke",
+                    "RevokeMessageStore/revocation",
+                    "revoke_message",
+                    "revokeMessage",
+                    "MessageStore/revoke",
+                    "CoreMessageStore/revoke",
+                    "CoreMessageStore/revocation",
+                    "CoreMessageStore/revoked",
+                    "FMessage/revoked",
+                    "fmessage-revoked",
+                    "MessageRevoke/revoke"
+            };
+            for (String anchor : anchors) {
+                try {
+                    var results = dexkit.findMethod(FindMethod.create()
+                            .matcher(MethodMatcher.create()
+                                    .addUsingString(anchor, StringMatchType.Contains)));
+                    for (var mData : results) {
+                        var method = mData.getMethodInstance(loader);
+                        if (method.getParameterCount() >= 1 && method.getParameterCount() <= 4) {
+                            methods.add(method);
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Fallback: Broad string-based search
+            String[] broadAnchors = {"revoked", "revocation", "message_revoke", "MessageRevoke", "msgstore/edit/revoke", "msgstore/add/revoke"};
+            for (String anchor : broadAnchors) {
+                try {
+                    var results = dexkit.findMethod(FindMethod.create()
+                            .matcher(MethodMatcher.create()
+                                    .addUsingString(anchor, StringMatchType.Contains)));
+                    for (var mData : results) {
+                        var method = mData.getMethodInstance(loader);
+                        if (method.getParameterCount() >= 1 && method.getParameterCount() <= 4) {
+                            methods.add(method);
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // Advanced discovery: find methods that use revocation constants and FMessage
+            try {
+                var fMessageClass = loadFMessageClass(loader);
+                int[] revokeTypes = {15, 31, 74};
+                for (int type : revokeTypes) {
+                    var results = dexkit.findMethod(FindMethod.create()
+                            .matcher(MethodMatcher.create()
+                                    .addParamType(fMessageClass.getName())
+                                    .addUsingNumber(type)));
+                    for (var mData : results) {
+                        methods.add(mData.getMethodInstance(loader));
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            if (methods.isEmpty())
+                throw new Exception("No AntiRevoke methods found");
+            
+            return methods.toArray(new Method[0]);
         });
     }
+
+    public synchronized static Method[] findAllAddOnMethods(ClassLoader loader) throws Exception {
+        return UnobfuscatorCache.getInstance().getMethods(loader, () -> {
+            Set<Method> methods = new LinkedHashSet<>();
+            var results = dexkit.findMethod(FindMethod.create()
+                    .matcher(MethodMatcher.create()
+                            .addUsingString("message_add_on", StringMatchType.Contains)));
+            for (var mData : results) {
+                methods.add(mData.getMethodInstance(loader));
+            }
+            return methods.toArray(new Method[0]);
+        });
+    }
+
+
 
     public synchronized static Field loadMessageKeyField(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getField(loader, () -> {
@@ -1788,7 +1940,7 @@ public class Unobfuscator {
                 // Fallback 1: Find the class that uses name_in_group AND has getFMessage()
                 // Then find the render/bind method within that class
                 int nameInGroupId = Utils.getID("name_in_group", "id");
-                XposedBridge.log("GroupAdmin: Starting getFMessage-based trace for ID=" + nameInGroupId);
+                ;
                 if (nameInGroupId > 0) {
                     var globalResults = dexkit.findMethod(FindMethod.create()
                             .matcher(MethodMatcher.create().addUsingNumber(nameInGroupId)));
@@ -1819,7 +1971,7 @@ public class Unobfuscator {
 
                         if (hasFMessage && android.view.View.class.isAssignableFrom(cls)) {
                             targetClass = cls;
-                            XposedBridge.log("GroupAdmin: Target class found: " + cls.getName());
+                            ;
                             break;
                         }
                     }
@@ -1855,9 +2007,9 @@ public class Unobfuscator {
                             
                             if (!bindMethods.isEmpty()) {
                                 method = bindMethods.get(0).getMethodInstance(loader);
-                                XposedBridge.log("GroupAdmin: Selected bind method: " + method.getName() + " in " + targetClass.getName() + " (static=" + Modifier.isStatic(method.getModifiers()) + ")");
+                                ;
                             } else {
-                                XposedBridge.log("GroupAdmin: No standard bind method found in " + targetClass.getName());
+                                ;
                             }
                         }
                     }
@@ -1909,7 +2061,7 @@ public class Unobfuscator {
                 if (invokeMethod.getParameterCount() != 2 || invokeMethod.getReturnType() != boolean.class)
                     continue;
                 if (invokeMethod.getParameterTypes()[1].getName().contains("jid.UserJid")) {
-                    XposedBridge.log("FIND: " + invokeMethod);
+                    ;
                     return invokeMethod;
                 }
 
@@ -1994,24 +2146,81 @@ public class Unobfuscator {
     public synchronized static Method getFilterInitMethod(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(loader, () -> {
             var filterAdaperClass = Unobfuscator.loadFilterAdaperClass(loader);
-            var constructor = filterAdaperClass.getConstructors()[0];
-            var methods = dexkit.findMethod(new FindMethod()
-                    .matcher(new MethodMatcher().addInvoke(DexSignUtil.getMethodDescriptor(constructor))));
+            var constructors = filterAdaperClass.getConstructors();
+            var methods = new java.util.ArrayList<org.luckypray.dexkit.result.MethodData>();
+            for (var constructor : constructors) {
+                methods.addAll(dexkit.findMethod(new FindMethod()
+                        .matcher(new MethodMatcher().addInvoke(DexSignUtil.getMethodDescriptor(constructor)))));
+            }
+
             if (methods.isEmpty())
                 throw new RuntimeException("FilterInit method not found");
             var cFrag = XposedHelpers.findClass("com.whatsapp.conversationslist.ConversationsFragment", loader);
-            var method = methods.stream().filter(m -> Arrays.asList(1, 2).contains(m.getParamCount())
+
+            // Strategy 1: Find static method taking ConversationsFragment as first parameter (relaxed count)
+            var method = methods.stream().filter(m -> m.getParamCount() >= 1
                     && m.getParamTypes().get(0).getName().equals(cFrag.getName())).findFirst().orElse(null);
+
+            if (method == null) {
+                // Strategy 2: Find any method declared in ConversationsFragment that invokes the constructor
+                method = methods.stream().filter(m -> m.getDeclaredClassName().equals(cFrag.getName())).findFirst().orElse(null);
+            }
+
+            if (method == null) {
+                // Strategy 3: Find any method that takes ConversationsFragment as any parameter
+                method = methods.stream().filter(m -> m.getParamTypes().stream()
+                        .anyMatch(p -> p.getName().equals(cFrag.getName()))).findFirst().orElse(null);
+            }
+
+            if (method == null) {
+                // Strategy 4: Find methods invoked from ConversationsFragment
+                for (var m : methods) {
+                    var callers = m.getCallers();
+                    if (callers.stream().anyMatch(c -> c.getDeclaredClassName().equals(cFrag.getName()))) {
+                        method = m;
+                        break;
+                    }
+                }
+            }
+
+            if (method == null) {
+                // Strategy 5: Find methods that contain filter-related strings
+                method = methods.stream().filter(m -> {
+                    var strings = m.getUsingStrings();
+                    return strings.contains("unread") || strings.contains("groups") || strings.contains("all") || strings.contains("favorites");
+                }).findFirst().orElse(null);
+            }
+
+            if (method == null) {
+                // Strategy 6: If only one method invokes the constructor, use it
+                if (methods.size() == 1) {
+                    method = methods.get(0);
+                }
+            }
+
+            if (method == null) {
+                // Strategy 7: Search for any method that takes a Fragment-like parameter and invokes the constructor
+                method = methods.stream().filter(m -> m.getParamTypes().stream()
+                        .anyMatch(p -> p.getName().contains("Fragment") || p.getName().contains("Activity")))
+                        .findFirst().orElse(null);
+            }
+
+            if (method == null && !methods.isEmpty()) {
+                // Final Strategy: Pick the first method that takes at least one parameter
+                method = methods.stream().filter(m -> m.getParamCount() >= 1).findFirst().orElse(methods.get(0));
+            }
+
             if (method == null)
                 throw new RuntimeException("FilterInit method not found 2");
 
-            // for 20.xx, it returned with 2 parameter count
-            if (method.getParamCount() == 2) {
+            // For older versions (20.xx), it might have 2 parameters and we might need the caller in ConversationsFragment
+            if (method.getParamCount() == 2 && !method.getDeclaredClassName().equals(cFrag.getName())) {
                 var callers = method.getCallers();
-                method = callers.stream().filter(methodData -> methodData.isMethod()
+                var caller = callers.stream().filter(methodData -> methodData.isMethod()
                         && methodData.getDeclaredClassName().equals(cFrag.getName())).findAny().orElse(null);
-                if (method == null)
-                    throw new RuntimeException("FilterInit method not found 3");
+                if (caller != null) {
+                    method = caller;
+                }
             }
             return method.getMethodInstance(loader);
         });
@@ -2682,9 +2891,32 @@ public class Unobfuscator {
     }
 
     public static Class loadWaContactClass(ClassLoader classLoader) throws Exception {
-        return UnobfuscatorCache.getInstance().getClass(classLoader,
-                () -> findFirstClassUsingStrings(classLoader, StringMatchType.Contains, "problematic contact:"));
+        return UnobfuscatorCache.getInstance().getClass(classLoader, () -> {
+            // Strategy 1: Use the return type of loadGetWaContactMethod (extremely robust!)
+            try {
+                var method = loadGetWaContactMethod(classLoader);
+                if (method != null) {
+                    var returnType = method.getReturnType();
+                    if (returnType != null && returnType != void.class) {
+                        return returnType;
+                    }
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] loadWaContactClass - Strategy 1 (loadGetWaContactMethod) failed: " + t.getMessage());
+            }
 
+            // Strategy 2: Fallback to searching using "problematic contact:"
+            try {
+                var cls = findFirstClassUsingStrings(classLoader, StringMatchType.Contains, "problematic contact:");
+                if (cls != null) {
+                    return cls;
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] loadWaContactClass - Strategy 2 (problematic contact:) failed: " + t.getMessage());
+            }
+
+            throw new ClassNotFoundException("WaContact Class not found using all search strategies");
+        });
     }
 
 
@@ -2922,40 +3154,144 @@ public class Unobfuscator {
 
     public static Field loadWaContactGetWaNameField(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getField(classLoader, () -> {
-            var method = dexkit
-                    .findMethod(FindMethod.create().matcher(
-                            MethodMatcher.create().addUsingString("ContactManagerDatabase/updateContactWAName")))
-                    .singleOrNull();
-            if (method == null)
-                throw new NoSuchMethodException("WaContactGetWaName field not found");
             var waContact = loadWaContactClass(classLoader).getName();
-            var usingFields = method.getUsingFields();
-            for (var usingField : usingFields) {
-                var field = usingField.getField();
-                if (field.getClassName().equals(waContact)
-                        && field.getType().getName().equals(String.class.getName())) {
-                    return field.getFieldInstance(classLoader);
+
+            // Strategy 1: Iterate over all methods matching the string
+            try {
+                var methods = dexkit.findMethod(FindMethod.create().matcher(
+                        MethodMatcher.create().addUsingString("ContactManagerDatabase/updateContactWAName")));
+                if (!methods.isEmpty()) {
+                    for (var methodData : methods) {
+                        var usingFields = methodData.getUsingFields();
+                        for (var usingField : usingFields) {
+                            var field = usingField.getField();
+                            if (field.getClassName().equals(waContact)
+                                    && field.getType().getName().equals(String.class.getName())) {
+                                return field.getFieldInstance(classLoader);
+                            }
+                        }
+                    }
                 }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] updateContactWAName method search error: " + t.getMessage());
             }
-            throw new NoSuchMethodException("WaContactGetWaName field not found");
+
+            // Strategy 2: Fallback to searching ContactManagerDatabase/updateGroupInfo for any String fields of WaContact
+            try {
+                var methods = dexkit.findMethod(FindMethod.create().matcher(
+                        MethodMatcher.create().addUsingString("ContactManagerDatabase/updateGroupInfo")));
+                if (!methods.isEmpty()) {
+                    for (var methodData : methods) {
+                        var usingFields = methodData.getUsingFields();
+                        for (var usingField : usingFields) {
+                            var field = usingField.getField();
+                            if (field.getClassName().equals(waContact)
+                                    && field.getType().getName().equals(String.class.getName())) {
+                                return field.getFieldInstance(classLoader);
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] updateGroupInfo field search error: " + t.getMessage());
+            }
+
+            // Strategy 3: Dynamic reflection fallback on WaContact class
+            try {
+                var clazz = loadWaContactClass(classLoader);
+                for (var f : clazz.getDeclaredFields()) {
+                    if (f.getType() == String.class
+                            && !java.lang.reflect.Modifier.isStatic(f.getModifiers())
+                            && java.lang.reflect.Modifier.isPublic(f.getModifiers())) {
+                        return f;
+                    }
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] WaContact class reflection search error for field: " + t.getMessage());
+            }
+
+            throw new NoSuchMethodException("WaContactGetWaName field not found after trying all search strategies");
         });
     }
 
     public static Method loadWaContactDisplayNameMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            var methods = dexkit.findMethod(FindMethod.create()
-                    .matcher(MethodMatcher.create().addUsingString("ContactManagerDatabase/updateGroupInfo")));
-            if (methods.isEmpty())
-                throw new NoSuchMethodException("WaContactDiplayName not found");
-            var invokes = methods.get(0).getInvokes();
             var waContactClass = loadWaContactClass(classLoader);
-            for (var invoke : invokes) {
-                if (!invoke.getClassName().equals(waContactClass.getName()))
-                    continue;
-                if (invoke.getReturnTypeName().equals(String.class.getName()))
-                    return invoke.getMethodInstance(classLoader);
+
+            // Strategy 1: Search in methods matching "ContactManagerDatabase/updateGroupInfo"
+            try {
+                var methods = dexkit.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create().addUsingString("ContactManagerDatabase/updateGroupInfo")));
+                if (!methods.isEmpty()) {
+                    for (var methodData : methods) {
+                        var invokes = methodData.getInvokes();
+                        for (var invoke : invokes) {
+                            if (!invoke.getClassName().equals(waContactClass.getName()))
+                                continue;
+                            var returnTypeName = invoke.getReturnTypeName();
+                            if (returnTypeName.equals(String.class.getName()) || returnTypeName.equals(CharSequence.class.getName())) {
+                                try {
+                                    var m = invoke.getMethodInstance(classLoader);
+                                    if (m != null && m.getParameterCount() == 0) {
+                                        return m;
+                                    }
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] updateGroupInfo method search error: " + t.getMessage());
             }
-            return null;
+
+            // Strategy 2: Search in methods matching "ContactManagerDatabase/updateContactWAName"
+            try {
+                var methods = dexkit.findMethod(FindMethod.create()
+                        .matcher(MethodMatcher.create().addUsingString("ContactManagerDatabase/updateContactWAName")));
+                if (!methods.isEmpty()) {
+                    for (var methodData : methods) {
+                        var invokes = methodData.getInvokes();
+                        for (var invoke : invokes) {
+                            if (!invoke.getClassName().equals(waContactClass.getName()))
+                                continue;
+                            var returnTypeName = invoke.getReturnTypeName();
+                            if (returnTypeName.equals(String.class.getName()) || returnTypeName.equals(CharSequence.class.getName())) {
+                                try {
+                                    var m = invoke.getMethodInstance(classLoader);
+                                    if (m != null && m.getParameterCount() == 0) {
+                                        return m;
+                                    }
+                                } catch (Throwable ignored) {}
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] updateContactWAName method search error: " + t.getMessage());
+            }
+
+            // Strategy 3: Dynamic reflection fallback on WaContact class (supporting String & CharSequence, and any access modifier)
+            try {
+                for (var m : waContactClass.getDeclaredMethods()) {
+                    if (m.getParameterCount() == 0 
+                            && (m.getReturnType() == String.class || m.getReturnType() == CharSequence.class)
+                            && !java.lang.reflect.Modifier.isStatic(m.getModifiers())) {
+                        return m;
+                    }
+                }
+            } catch (Throwable t) {
+                XposedBridge.log("[WAE] WaContact class reflection search error: " + t.getMessage());
+            }
+
+            // Verbose logging if all search strategies fail for easy future troubleshooting
+            try {
+                XposedBridge.log("[WAE] WaContactDisplayName method lookup failed. Listing all methods of " + waContactClass.getName() + ":");
+                for (var m : waContactClass.getDeclaredMethods()) {
+                    ;
+                }
+            } catch (Throwable ignored) {}
+
+            throw new NoSuchMethodException("WaContactDisplayName method not found after trying all search strategies");
         });
     }
 

@@ -414,7 +414,7 @@
     <string name="disable_the_proximity_sensor_sum">Impedir que a tela desligue por meio do sensor de proximidade.</string>
     <string name="disable_status_in_the_profile_photo">Desativar status na foto do perfil</string>
     <string name="disable_status_in_the_profile_photo_sum">Quando ativo, o círculo que aparece na foto de perfil de cada contato quando há um novo status é desativado.</string>
-    <string name="download_not_available">O download não está disponível ou a mídia não foi totalmente baixada</string>
+    <string name="download_not_available">Please wait until it is fully downloaded in WhatsApp before trying again.</string>
     <string name="possible_block_detected">Possível bloqueio detectado</string>
     <string name="block_not_detected">Bloqueio não detectado</string>
     <string name="checking_if_the_contact_is_blocked">Verificando se o contato está bloqueado...</string>

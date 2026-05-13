@@ -68,6 +68,14 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".receivers.TaskerMessageSentReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.waenhancer.MESSAGE_SENT" />
+            </intent-filter>
+        </receiver>
+
         <!--suppress AndroidDomInspection -->
         <service
             android:name="com.google.android.gms.metadata.ModuleDependencies"
@@ -177,6 +185,18 @@
             android:theme="@style/AppTheme"
             android:label="@string/update_settings"
             android:parentActivityName=".activities.ChangelogActivity" />
+
+        <activity
+            android:name=".activities.TaskerGuideActivity"
+            android:theme="@style/AppTheme"
+            android:label="Automation Guide"
+            android:parentActivityName=".activities.MainActivity" />
+
+        <activity
+            android:name=".activities.TaskerHistoryActivity"
+            android:theme="@style/AppTheme"
+            android:label="Automation History"
+            android:parentActivityName=".activities.MainActivity" />
 
         <activity
             android:name=".activities.LogsActivity"

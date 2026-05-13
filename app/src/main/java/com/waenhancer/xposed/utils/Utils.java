@@ -61,6 +61,12 @@ public class Utils {
     private static final ExecutorService executorService = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
     public static android.content.SharedPreferences xprefs;
     private static final HashMap<String, Integer> ids = new HashMap<>();
+    public static boolean DEBUG = false;
+    private static final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    public static void postDelayed(Runnable runnable, long delay) {
+        mainHandler.postDelayed(runnable, delay);
+    }
 
     public static void init(ClassLoader loader) {
         var context = Utils.getApplication();
@@ -288,18 +294,34 @@ public class Utils {
     }
 
     public static void log(String message) {
+        if (!DEBUG) return;
         try {
-            XposedBridge.log(message);
+            ;
         } catch (NoClassDefFoundError | NoSuchMethodError e) {
             // Fallback logging not available
         }
     }
 
     public static void log(Throwable t) {
+        if (!DEBUG) return;
         try {
             XposedBridge.log(t);
         } catch (NoClassDefFoundError | NoSuchMethodError e) {
             // Fallback logging not available
+        }
+    }
+
+    public static void logError(String message) {
+        try {
+            XposedBridge.log("[WAE_ERROR] " + message);
+        } catch (NoClassDefFoundError | NoSuchMethodError e) {
+        }
+    }
+
+    public static void logError(Throwable t) {
+        try {
+            XposedBridge.log(t);
+        } catch (NoClassDefFoundError | NoSuchMethodError e) {
         }
     }
 
@@ -484,6 +506,71 @@ public class Utils {
     public interface BinderLocalScopeBlock<T> {
         T execute();
     }
+
+    @SuppressWarnings("unchecked")
+    public static void setViewClickListener(android.view.View view, String key, android.view.View.OnClickListener listener) {
+        if (view == null) return;
+        
+        synchronized (view) {
+            java.util.HashMap<String, android.view.View.OnClickListener> listeners = (java.util.HashMap<String, android.view.View.OnClickListener>) 
+                    de.robv.android.xposed.XposedHelpers.getAdditionalInstanceField(view, "wae_click_listeners");
+            
+            if (listeners == null) {
+                listeners = new java.util.HashMap<>();
+                de.robv.android.xposed.XposedHelpers.setAdditionalInstanceField(view, "wae_click_listeners", listeners);
+                
+                android.view.View.OnClickListener original = getCurrentClickListener(view);
+                if (original != null && !isWaeClickListener(original)) {
+                    listeners.put("original", original);
+                }
+            }
+            
+            if (listener != null) {
+                listeners.put(key, listener);
+            } else {
+                listeners.remove(key);
+            }
+            
+            if (listeners.isEmpty()) {
+                view.setOnClickListener(null);
+                de.robv.android.xposed.XposedHelpers.removeAdditionalInstanceField(view, "wae_click_listeners");
+            } else {
+                android.view.View.OnClickListener composite = v -> {
+                    java.util.HashMap<String, android.view.View.OnClickListener> map = (java.util.HashMap<String, android.view.View.OnClickListener>) 
+                            de.robv.android.xposed.XposedHelpers.getAdditionalInstanceField(v, "wae_click_listeners");
+                    if (map != null) {
+                        for (android.view.View.OnClickListener clickListener : new java.util.ArrayList<>(map.values())) {
+                            if (clickListener != null) {
+                                try {
+                                    clickListener.onClick(v);
+                                } catch (Throwable t) {
+                                    de.robv.android.xposed.XposedBridge.log(t);
+                                }
+                            }
+                        }
+                    }
+                };
+                de.robv.android.xposed.XposedHelpers.setAdditionalInstanceField(composite, "is_wae_click_listener", true);
+                view.setOnClickListener(composite);
+            }
+        }
+    }
+
+    private static android.view.View.OnClickListener getCurrentClickListener(android.view.View view) {
+        try {
+            Object listenerInfo = de.robv.android.xposed.XposedHelpers.callMethod(view, "getListenerInfo");
+            if (listenerInfo == null) return null;
+            return (android.view.View.OnClickListener) de.robv.android.xposed.XposedHelpers.getObjectField(listenerInfo, "mOnClickListener");
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static boolean isWaeClickListener(android.view.View.OnClickListener listener) {
+        if (listener == null) return false;
+        return Boolean.TRUE.equals(de.robv.android.xposed.XposedHelpers.getAdditionalInstanceField(listener, "is_wae_click_listener"));
+    }
+
 
     public static int getDefaultTheme() {
         try {

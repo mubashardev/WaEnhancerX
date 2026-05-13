@@ -71,7 +71,7 @@ public class HomeFragment extends BaseFragment {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String pkg = intent.getStringExtra("PKG");
-                Log.d("WAE_STATUS", "Received RECEIVER_WPP broadcast from: " + pkg);
+                ;
                 try {
                     if (FeatureLoader.PACKAGE_WPP.equals(pkg))
                         receiverBroadcastWpp(context, intent);
@@ -439,7 +439,7 @@ public class HomeFragment extends BaseFragment {
 
     private void saveConfigs(Context context) {
         if (FilePicker.fileSalve == null) {
-            Toast.makeText(context, context.getString(R.string.configs_imported) != null ? "Please use the standalone WaEnhancer app for file operations." : "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, context.getString(R.string.configs_imported) != null ? "Please use the standalone WaEnhancerX app for file operations." : "Please use the standalone WaEnhancerX app for file operations.", Toast.LENGTH_SHORT).show();
             return;
         }
         FilePicker.setOnUriPickedListener((uri) -> {
@@ -461,13 +461,24 @@ public class HomeFragment extends BaseFragment {
 
     private void importConfigs(Context context) {
         if (FilePicker.fileCapture == null) {
-            Toast.makeText(context, "Please use the standalone WaEnhancer app for file operations.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, "Please use the standalone WaEnhancerX app for file operations.", Toast.LENGTH_SHORT).show();
             return;
         }
         FilePicker.setOnUriPickedListener((uri) -> {
             try {
                 try (var input = context.getContentResolver().openInputStream(uri)) {
-                    var data = IOUtils.toString(input);
+                    java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+                    int nRead;
+                    byte[] dataBuffer = new byte[8192];
+                    int totalRead = 0;
+                    while ((nRead = input.read(dataBuffer, 0, dataBuffer.length)) != -1) {
+                        buffer.write(dataBuffer, 0, nRead);
+                        totalRead += nRead;
+                        if (totalRead > 5 * 1024 * 1024) { // 5 MB limit
+                            throw new RuntimeException("File is too large to be a valid config.");
+                        }
+                    }
+                    var data = buffer.toString("UTF-8");
                     var prefs = PreferenceManager.getDefaultSharedPreferences(context);
                     var jsonObject = new JSONObject(data);
                     prefs.getAll().forEach((key, value) -> prefs.edit().remove(key).apply());
@@ -525,7 +536,7 @@ public class HomeFragment extends BaseFragment {
         boolean hookEnabled = com.waenhancer.utils.ModuleStatus.isModuleActive();
         boolean heartbeatEnabled = hasRecentModuleHeartbeat();
         
-        Log.d("WAE_STATUS", "checkStateWpp: framework=" + frameworkPresent + ", hook=" + hookEnabled + ", heartbeat=" + heartbeatEnabled);
+        ;
         
         updateModuleStatusUi(frameworkPresent, hookEnabled, heartbeatEnabled);
         
@@ -679,7 +690,7 @@ public class HomeFragment extends BaseFragment {
     }
 
     private static void checkWpp(FragmentActivity activity) {
-        Log.d("WAE_STATUS", "Sending CHECK_WPP broadcast to " + BuildConfig.APPLICATION_ID);
+        ;
         Intent checkWpp = new Intent(BuildConfig.APPLICATION_ID + ".CHECK_WPP");
         // Ensure broadcast reaches WhatsApp even if it is in background/stopped state (Android 14+)
         checkWpp.addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES);
@@ -758,7 +769,7 @@ public class HomeFragment extends BaseFragment {
         long diff = System.currentTimeMillis() - lastSeen;
         // Expiry threshold: 24 hours for persistent status even if WhatsApp is force-stopped
         boolean active = diff < 24 * 60 * 60 * 1000L;
-        Log.v("WAE_STATUS", "Heartbeat check: lastSeen=" + lastSeen + ", diff=" + (diff/1000) + "s, active=" + active);
+        ;
         return active;
     }
 

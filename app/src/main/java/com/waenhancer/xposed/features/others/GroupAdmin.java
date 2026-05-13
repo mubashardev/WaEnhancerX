@@ -1,6 +1,7 @@
 package com.waenhancer.xposed.features.others;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +25,7 @@ import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.Arrays;
 
 import de.robv.android.xposed.XC_MethodHook;
 import android.content.SharedPreferences;
@@ -42,12 +44,8 @@ public class GroupAdmin extends Feature {
         boolean enabled = prefs.getBoolean("admin_grp", false)
             || prefs.getBoolean("show_admin_group_icon", false)
             || (!prefs.contains("admin_grp") && !prefs.contains("show_admin_group_icon"));
-        XposedBridge.log("GroupAdmin: pref admin_grp=" + prefs.getBoolean("admin_grp", false)
-            + ", show_admin_group_icon=" + prefs.getBoolean("show_admin_group_icon", false)
-            + ", contains(admin_grp)=" + prefs.contains("admin_grp")
-            + ", contains(show_admin_group_icon)=" + prefs.contains("show_admin_group_icon")
-            + ", enabled=" + enabled);
         if (!enabled) return;
+        
         var jidFactory = Unobfuscator.loadJidFactory(classLoader);
         var grpAdmin1 = Unobfuscator.loadGroupAdminMethod(classLoader);
         var grpcheckAdmin = Unobfuscator.loadGroupCheckAdminMethod(classLoader);
@@ -57,150 +55,142 @@ public class GroupAdmin extends Feature {
             conversationRowClass = Unobfuscator.loadConversationRowClass(classLoader);
         } catch (Throwable ignored) {
         }
+        
         var hooked = new XC_MethodHook() {
             @SuppressLint("ResourceType")
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 try {
-                    XposedBridge.log("GroupAdmin HOOK: afterHookedMethod triggered, thisObject=" + (param.thisObject != null ? param.thisObject.getClass().getName() : "null") + " args=" + (param.args != null ? param.args.length : 0));
-                    var targetObj = param.thisObject;
-                    if (targetObj == null && param.args != null) {
-                        for (Object arg : param.args) {
-                            if (arg instanceof android.view.View) {
-                                targetObj = arg;
-                                break;
-                            }
-                        }
-                    }
-                    if (targetObj == null && param.args != null) {
-                        for (Object arg : param.args) {
+                    Object targetObj = param.thisObject;
+                    Object[] args = param.args;
+
+                    if (targetObj == null && args != null && args.length > 0) {
+                        for (Object arg : args) {
                             if (arg == null) continue;
-                            if (XposedHelpers.findMethodExactIfExists(arg.getClass(), "getFMessage") != null) {
+                            if (arg instanceof View || XposedHelpers.findMethodExactIfExists(arg.getClass(), "getFMessage") != null) {
                                 targetObj = arg;
                                 break;
                             }
                         }
                     }
-                    if (targetObj == null) {
-                        XposedBridge.log("GroupAdmin HOOK: No target object found!");
-                        return;
-                    }
+
+                    if (targetObj == null) return;
 
                     Object fMessageObj = null;
                     if (XposedHelpers.findMethodExactIfExists(targetObj.getClass(), "getFMessage") != null) {
                         fMessageObj = XposedHelpers.callMethod(targetObj, "getFMessage");
                     }
-                    if (fMessageObj == null && param.args != null) {
-                        for (Object arg : param.args) {
+                    
+                    if (fMessageObj == null && args != null) {
+                        for (Object arg : args) {
                             if (arg != null && fMessageClass.isAssignableFrom(arg.getClass())) {
                                 fMessageObj = arg;
                                 break;
                             }
                         }
                     }
-                    XposedBridge.log("GroupAdmin HOOK: fMessageObj=" + (fMessageObj != null ? fMessageObj.getClass().getName() : "null"));
+
                     if (fMessageObj == null) return;
+                    
                     var fMessage = new FMessageWpp(fMessageObj);
                     var userJid = fMessage.getUserJid();
                     if (userJid == null || userJid.userJid == null) return;
-                    XposedBridge.log("GroupAdmin HOOK: userJid=" + (userJid != null ? userJid.toString() : "null"));
+                    
                     var chatCurrentJid = resolveGroupJid(fMessage);
                     if (chatCurrentJid == null || !chatCurrentJid.isGroup()) return;
-                    XposedBridge.log("GroupAdmin HOOK: In a group chat, checking admin status...");
 
-                    Object participantOwner = targetObj;
-                    var field = ReflectionUtils.getFieldByType(participantOwner.getClass(), grpcheckAdmin.getDeclaringClass());
-                    if (field == null && param.args != null) {
-                        for (Object arg : param.args) {
-                            if (arg == null) continue;
-                            field = ReflectionUtils.getFieldByType(arg.getClass(), grpcheckAdmin.getDeclaringClass());
-                            if (field != null) {
-                                participantOwner = arg;
+                    // Try to find the View
+                    View rowView = targetObj instanceof View ? (View) targetObj : null;
+                    if (rowView == null) {
+                        rowView = extractViewFromObject(targetObj);
+                    }
+                    if (rowView == null) return;
+
+                    // Try to find GroupParticipantManager instance
+                    Object manager = null;
+                    Class<?> managerClass = grpcheckAdmin.getDeclaringClass();
+                    
+                    // Search in the target object fields
+                    Field managerField = ReflectionUtils.findFieldUsingFilterIfExists(targetObj.getClass(), f -> managerClass.isAssignableFrom(f.getType()));
+                    if (managerField != null) {
+                        manager = managerField.get(targetObj);
+                    }
+                    
+                    // Search in Activity
+                    if (manager == null) {
+                        Context ctx = rowView.getContext();
+                        while (ctx instanceof android.content.ContextWrapper && !(ctx instanceof android.app.Activity)) {
+                            ctx = ((android.content.ContextWrapper) ctx).getBaseContext();
+                        }
+                        if (ctx instanceof android.app.Activity) {
+                            Field f = ReflectionUtils.findFieldUsingFilterIfExists(ctx.getClass(), field -> managerClass.isAssignableFrom(field.getType()));
+                            if (f != null) {
+                                manager = f.get(ctx);
+                            }
+                        }
+                    }
+
+                    if (manager == null && args != null) {
+                        for (Object arg : args) {
+                            if (arg != null && managerClass.isAssignableFrom(arg.getClass())) {
+                                manager = arg;
                                 break;
                             }
                         }
                     }
-                    if (field == null) {
-                        XposedBridge.log("GroupAdmin HOOK: field for grpcheckAdmin not found in target/args");
-                        return;
-                    }
-                    var grpParticipants = field.get(participantOwner);
+
+                    if (manager == null) return;
+
                     Object jidGrp;
-                    String groupRawJid = chatCurrentJid.getUserRawString();
-                    if (groupRawJid == null) {
-                        groupRawJid = chatCurrentJid.getPhoneRawString();
-                    }
-                    if (groupRawJid == null) {
-                        XposedBridge.log("GroupAdmin HOOK: group raw jid not found");
-                        return;
-                    }
+                    String groupRawJid = chatCurrentJid.getPhoneRawString();
                     if (Modifier.isStatic(jidFactory.getModifiers())) {
                         jidGrp = jidFactory.invoke(null, groupRawJid);
                     } else {
-                        Object factoryInstance = XposedHelpers.newInstance(jidFactory.getDeclaringClass());
-                        jidGrp = jidFactory.invoke(factoryInstance, groupRawJid);
+                        jidGrp = XposedHelpers.callStaticMethod(jidFactory.getDeclaringClass(), "A03", groupRawJid);
                     }
-                    var result = grpcheckAdmin.invoke(grpParticipants, jidGrp, userJid.userJid);
-                    XposedBridge.log("GroupAdmin HOOK: isAdmin result=" + result);
+                    
+                    if (jidGrp == null) return;
 
-                    View view = targetObj instanceof View ? (View) targetObj : null;
-                    if (view == null && param.args != null) {
-                        for (Object arg : param.args) {
-                            if (arg instanceof View) {
-                                view = (View) arg;
-                                break;
-                            }
-                        }
-                    }
-                    if (view == null) {
-                        view = extractViewFromObject(targetObj);
-                    }
-                    if (view == null && param.args != null) {
-                        for (Object arg : param.args) {
-                            if (arg == null) continue;
-                            view = extractViewFromObject(arg);
-                            if (view != null) break;
-                        }
-                    }
-                    if (view == null) {
-                        XposedBridge.log("GroupAdmin HOOK: no row view found, skipping icon render");
-                        return;
+                    var result = grpcheckAdmin.invoke(manager, jidGrp, userJid.userJid);
+                    boolean isAdmin = (result instanceof Boolean && (Boolean) result);
+                    
+                    // Fallback for LIDs
+                    if (!isAdmin && userJid.phoneJid != null && !userJid.phoneJid.equals(userJid.userJid)) {
+                        Object res = grpcheckAdmin.invoke(manager, jidGrp, userJid.phoneJid);
+                        isAdmin = (res instanceof Boolean && (Boolean) res);
                     }
 
-                    var context = view.getContext();
-                    ImageView iconAdmin;
-                    if ((iconAdmin = view.findViewById(0x7fff0010)) == null) {
-                        var nameGroup = (LinearLayout) view.findViewById(Utils.getID("name_in_group", "id"));
+                    TextView iconAdmin;
+                    if ((iconAdmin = rowView.findViewById(0x7fff0010)) == null) {
+                        ViewGroup nameGroup = rowView.findViewById(Utils.getID("name_in_group", "id"));
                         if (nameGroup == null) {
-                            nameGroup = findNameContainer(view);
+                            nameGroup = findNameContainer(rowView);
                         }
-                        if (nameGroup == null) {
-                            XposedBridge.log("GroupAdmin HOOK: name_in_group view not found!");
-                            return;
-                        }
-                        var view1 = new LinearLayout(context);
-                        view1.setOrientation(LinearLayout.HORIZONTAL);
-                        view1.setGravity(Gravity.CENTER_VERTICAL);
-                        var nametv = nameGroup.getChildCount() > 0 ? nameGroup.getChildAt(0) : null;
-                        if (nametv == null) {
-                            XposedBridge.log("GroupAdmin HOOK: no name text child found");
-                            return;
-                        }
-                        iconAdmin = new ImageView(context);
-                        var size = Utils.dipToPixels(16);
-                        iconAdmin.setLayoutParams(new LinearLayout.LayoutParams(size, size));
-                        iconAdmin.setImageResource(R.drawable.admin);
+                        if (nameGroup == null) return;
+                        
+                        iconAdmin = new TextView(rowView.getContext());
                         iconAdmin.setId(0x7fff0010);
-                        nameGroup.removeView(nametv);
-                        view1.addView(nametv);
-                        view1.addView(iconAdmin);
-                        nameGroup.addView(view1, 0);
+                        iconAdmin.setTextSize(12);
+                        
+                        String adminEmoji = prefs.getString("admin_emoji", "👑");
+                        if (adminEmoji == null || adminEmoji.isEmpty()) {
+                            adminEmoji = "👑";
+                        }
+                        iconAdmin.setText(adminEmoji);
+                        
+                        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.WRAP_CONTENT, 
+                            ViewGroup.LayoutParams.WRAP_CONTENT
+                        );
+                        params.leftMargin = Utils.dipToPixels(4);
+                        params.gravity = Gravity.CENTER_VERTICAL;
+                        iconAdmin.setLayoutParams(params);
+                        
+                        nameGroup.addView(iconAdmin);
                     }
-                    iconAdmin.setVisibility(result != null && (boolean) result ? View.VISIBLE : View.GONE);
-                    XposedBridge.log("GroupAdmin HOOK: Icon visibility set to " + (result != null && (boolean) result ? "VISIBLE" : "GONE"));
+                    iconAdmin.setVisibility(isAdmin ? View.VISIBLE : View.GONE);
                 } catch (Throwable t) {
                     XposedBridge.log("GroupAdmin HOOK ERROR: " + t.getMessage());
-                    XposedBridge.log(t);
                 }
             }
         };
@@ -211,7 +201,6 @@ public class GroupAdmin extends Feature {
         }
         for (Method method : bindMethods) {
             XposedBridge.hookMethod(method, hooked);
-            XposedBridge.log("GroupAdmin: Hooked bind candidate " + method);
         }
     }
 
@@ -275,10 +264,6 @@ public class GroupAdmin extends Feature {
                     }
                 }
 
-                if (!looksLikeBind && XposedHelpers.findMethodExactIfExists(method.getDeclaringClass(), "setFMessage", (Object) method.getParameterTypes()) != null) {
-                    looksLikeBind = true;
-                }
-
                 if (looksLikeBind) {
                     method.setAccessible(true);
                     result.add(method);
@@ -289,7 +274,7 @@ public class GroupAdmin extends Feature {
         return result;
     }
 
-    private LinearLayout findNameContainer(@NonNull View root) {
+    private ViewGroup findNameContainer(@NonNull View root) {
         if (root instanceof LinearLayout) {
             LinearLayout layout = (LinearLayout) root;
             for (int i = 0; i < layout.getChildCount(); i++) {
@@ -303,7 +288,7 @@ public class GroupAdmin extends Feature {
             for (int i = 0; i < vg.getChildCount(); i++) {
                 var child = vg.getChildAt(i);
                 var found = findNameContainer(child);
-                if (found != null) return found;
+                if (found != null) return (ViewGroup) found;
             }
         }
         return null;
@@ -311,6 +296,7 @@ public class GroupAdmin extends Feature {
 
     private View extractViewFromObject(Object holder) {
         if (holder == null) return null;
+        if (holder instanceof View) return (View) holder;
         Class<?> cursor = holder.getClass();
         while (cursor != null && cursor != Object.class) {
             for (Field field : cursor.getDeclaredFields()) {

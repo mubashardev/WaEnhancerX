@@ -2,10 +2,10 @@ package com.waenhancer.xposed.features.customization;
 
 import static com.waenhancer.xposed.features.customization.SeparateGroup.tabs;
 
+import android.app.Activity;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.FrameLayout;
 
 import androidx.annotation.NonNull;
 
@@ -72,35 +72,35 @@ public class HideTabs extends Feature {
             }
         });
 
-        var loadTabFrameClass = Unobfuscator.loadTabFrameClass(classLoader);
-        logDebug(loadTabFrameClass);
-
-        XposedBridge.hookAllMethods(FrameLayout.class, "onMeasure", new XC_MethodHook() {
-            @Override
-            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                if (!loadTabFrameClass.isInstance(param.thisObject)) return;
-                if (tabs != null) {
-                    var arr = new ArrayList<>(tabs);
-                    arr.removeAll(hideTabsList);
-                    if (arr.size() == 1) {
-                        ((View) param.thisObject).setVisibility(View.GONE);
-                    }
-                }
-                for (var item : hideTabsList) {
-                    View view;
-                    if ((view = ((View) param.thisObject).findViewById(item)) != null) {
-                        view.setVisibility(View.GONE);
-                    }
-                }
-            }
-        });
-
         XposedHelpers.findAndHookMethod(WppCore.getHomeActivityClass(classLoader), "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                 Class<?> TabsPagerClass = WppCore.getTabsPagerClass(classLoader);
                 var tabsField = ReflectionUtils.getFieldByType(param.thisObject.getClass(), TabsPagerClass);
                 mTabPagerInstance = tabsField.get(param.thisObject);
+
+                // Also apply hiding immediately in onCreate for faster initial render
+                if (mTabPagerInstance != null) {
+                    try {
+                        var contentView = ((Activity) param.thisObject).findViewById(android.R.id.content);
+                        if (contentView != null) {
+                            if (tabs != null) {
+                                var arr = new ArrayList<>(tabs);
+                                arr.removeAll(hideTabsList);
+                                View tabFrame = contentView.findViewById(android.R.id.tabs);
+                                if (tabFrame != null && arr.size() == 1) {
+                                    tabFrame.setVisibility(View.GONE);
+                                }
+                            }
+                            for (var item : hideTabsList) {
+                                View tabView = contentView.findViewById(item);
+                                if (tabView != null) {
+                                    tabView.setVisibility(View.GONE);
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
             }
         });
 
@@ -117,21 +117,6 @@ public class HideTabs extends Feature {
                 }
             }
         });
-
-        XposedHelpers.findAndHookMethod("androidx.viewpager.widget.ViewPager", classLoader, "addView", classLoader.loadClass("android.view.View"), int.class, classLoader.loadClass("android.view.ViewGroup$LayoutParams"),
-                new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        if (param.thisObject != mTabPagerInstance) return;
-                        for (var item : hideTabsList) {
-                            var index = tabs.indexOf(item);
-                            if (index == -1) continue;
-                            if ((int) param.args[1] == index) {
-                                ((View) param.args[0]).setVisibility(View.GONE);
-                            }
-                        }
-                    }
-                });
     }
 
     @NonNull

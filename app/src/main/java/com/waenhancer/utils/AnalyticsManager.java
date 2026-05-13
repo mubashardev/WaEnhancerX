@@ -1,0 +1,78 @@
+package com.waenhancer.utils;
+
+import android.content.Context;
+import android.os.Bundle;
+import com.waenhancer.App;
+import com.waenhancer.BuildConfig;
+
+public class AnalyticsManager {
+
+    private static final String TAG = "WAE_Analytics";
+    
+    private static final String[] ANALYTICS_PROVIDER_AUTHORITIES = new String[] {
+            BuildConfig.APPLICATION_ID + ".hookprovider",
+            BuildConfig.APPLICATION_ID + ".provider"
+    };
+
+    /**
+     * Log an event to Firebase Analytics.
+     * Can be called from any process.
+     */
+    public static void logEvent(Context context, String eventName, Bundle params) {
+        if (context == null) return;
+        
+        // If in main process, log directly
+        if (context.getPackageName().equals(BuildConfig.APPLICATION_ID)) {
+            logDirectly(context, eventName, params);
+        } else {
+            // If in target process (WhatsApp), send via provider
+            logViaProvider(context, eventName, params);
+        }
+    }
+
+    private static void logDirectly(Context context, String eventName, Bundle params) {
+        try {
+            Class<?> firebaseAnalyticsClass = Class.forName("com.google.firebase.analytics.FirebaseAnalytics");
+            Object instance = firebaseAnalyticsClass.getMethod("getInstance", Context.class).invoke(null, context);
+            firebaseAnalyticsClass.getMethod("logEvent", String.class, Bundle.class).invoke(instance, eventName, params);
+        } catch (Throwable ignored) {
+            // Firebase might not be initialized or present
+        }
+    }
+
+    private static final java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
+
+    private static void logViaProvider(Context context, String eventName, Bundle params) {
+        // Capture context and params for the background task
+        final Context appContext = context.getApplicationContext() != null ? context.getApplicationContext() : context;
+        final Bundle eventParams = params != null ? new Bundle(params) : null;
+
+        executor.execute(() -> {
+            try {
+                Bundle extras = new Bundle();
+                extras.putString("event_name", eventName);
+                extras.putBundle("params", eventParams);
+                callProvider(appContext, "record_event", extras);
+            } catch (Exception ignored) {}
+        });
+    }
+
+    private static void callProvider(Context context, String method, Bundle extras) {
+        for (String authority : ANALYTICS_PROVIDER_AUTHORITIES) {
+            try {
+                context.getContentResolver().call(
+                        android.net.Uri.parse("content://" + authority), method, null, extras);
+                return;
+            } catch (Exception ignored) {}
+        }
+    }
+    
+    /**
+     * Log a screen view event.
+     */
+    public static void logScreenView(Context context, String screenName) {
+        Bundle params = new Bundle();
+        params.putString("screen_name", screenName);
+        logEvent(context, "screen_view", params);
+    }
+}

@@ -193,15 +193,27 @@ public abstract class BasePreferenceFragment extends PreferenceFragmentCompat
 
     @Override
     public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, @Nullable String s) {
-        android.util.Log.d("WAE_Manager", "onSharedPreferenceChanged: " + s);
+        ;
         if (Objects.equals(s, "release_channel")) {
             String channel = mPrefs.getString("release_channel", "stable");
             WppCore.setPrivString("release_channel", channel);
         }
         
         // Flag that a restart is needed for the changes to take effect in WhatsApp
-        if (s != null && !s.equals("need_restart") && !s.equals("release_channel")) {
-            android.util.Log.d("WAE_Manager", "Setting need_restart = true due to change in: " + s);
+        // Ignore internal/meta keys to avoid synchronization loops
+        boolean isInternalKey = s == null || 
+                s.equals("need_restart") || 
+                s.equals("release_channel") || 
+                s.equals("pending_restart_changes") || 
+                s.equals("ignored_version") || 
+                s.equals("ignored_timestamp") || 
+                s.equals("update_alert_frequency") || 
+                s.equals("last_update_check") || 
+                s.equals("show_hook_toast") || 
+                s.equals("open_wae");
+
+        if (!isInternalKey) {
+            ;
             
             // Track what changed for the restart dialog
             try {
@@ -227,10 +239,10 @@ public abstract class BasePreferenceFragment extends PreferenceFragmentCompat
 
     private void scheduleRestartBroadcast() {
         if (!isResumed()) {
-            android.util.Log.d("WAE_Manager", "scheduleRestartBroadcast: Fragment not resumed, skipping");
+            ;
             return;
         }
-        android.util.Log.d("WAE_Manager", "scheduleRestartBroadcast: Scheduling MANUAL_RESTART broadcast in 250ms");
+        ;
         restartBroadcastHandler.removeCallbacks(restartBroadcastRunnable);
         restartBroadcastHandler.postDelayed(restartBroadcastRunnable, 250);
     }
@@ -342,8 +354,8 @@ public abstract class BasePreferenceFragment extends PreferenceFragmentCompat
         setPreferenceState("showonlinetext", !freezelastseen);
         setPreferenceState("dotonline", !freezelastseen);
 
-        var separategroups = mPrefs.getBoolean("separategroups", false);
-        setPreferenceState("filtergroups", !separategroups);
+        boolean separategroups = mPrefs.getBoolean("separategroups", false);
+        setPreferenceState("filtergroups", false); // Forced disabled
 
         var filtergroups = mPrefs.getBoolean("filtergroups", false);
 
@@ -359,9 +371,10 @@ public abstract class BasePreferenceFragment extends PreferenceFragmentCompat
 
         var supported = isSeparateGroupSupported();
         updateGroupPref("separategroups", supported, R.string.separate_groups_sum, R.string.separate_groups_unsupported_sum);
+        // Fully disable FilterGroups due to technical instability
+        setPreferenceState("filtergroups", false);
         var filterGroupsPreference = findPreference("filtergroups");
         if (filterGroupsPreference != null) {
-            filterGroupsPreference.setEnabled(true);
             filterGroupsPreference.setSummary(R.string.new_ui_group_filter_sum);
         }
 

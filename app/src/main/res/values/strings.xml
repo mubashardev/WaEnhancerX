@@ -97,6 +97,10 @@
     <string name="call_blocker_buttons_only_unknown_block">Block only unknown numbers</string>
     <string name="show_edited_message_history">Show Edited Message History</string>
     <string name="show_edited_message_history_sum">Show edited message history when clicking \"Edited\" on a message</string>
+    <string name="show_message_device_source">Show Message Device Source</string>
+    <string name="show_message_device_source_sum">Shows whether a message was sent from the primary device or a linked device</string>
+    <string name="message_sent_via_phone">This message was sent via Phone</string>
+    <string name="message_sent_via_linked_device">This message was sent via Linked Device</string>
     <string name="dnd_message">When Do Not Disturb mode is on, you will be unable to send or receive messages</string>
     <string name="dnd_mode_title">DND Mode</string>
     <string name="activate">Activate</string>
@@ -266,7 +270,7 @@
     <string name="enable_media_preview">Enable Media Preview</string>
     <string name="enable_media_preview_sum">Add a button to preview media in a temporary file (without downloading it permanently)</string>
     <string name="new_ui_group_filter">New UI Group Filter</string>
-    <string name="new_ui_group_filter_sum">Experimental: includes a new filter on the home screen to separate groups and conversations. It may be unstable.</string>
+    <string name="new_ui_group_filter_sum">Disabled: This feature is currently incompatible with the latest WhatsApp build due to significant internal layout changes. It will be restored in a future update.</string>
     <string name="call_blocking_type">Call blocking type</string>
     <string name="call_blocking_type_sum">Select the method by which the call blocking will be done.</string>
     <string name="call_type_buttons_no_internet">No internet (\"Calling\")</string>
@@ -377,6 +381,8 @@
     <string name="list_animations_home_screen_sum">Add animations when swiping the chat list</string>
     <string name="stamp_copied_messages">Remove Stamp from Copied Messages</string>
     <string name="stamp_copied_messages_sum">Removes name and date when copying more than one message</string>
+    <string name="primary_device">Primary device</string>
+    <string name="linked_device">Linked device</string>
     <string name="invalid_folder">The invalid folder has been selected. Please choose the WaEnhancer X folder</string>
     <string name="uri_permission">To use custom themes you need to select the \"WaEnhancer X\" folder in \"Download\"</string>
     <string name="double_click_to_react">Enable Double Click to React</string>
@@ -460,7 +466,7 @@
     <string name="disable_the_proximity_sensor_sum">Disable Screen off on proximity sensor to the whole WhatsApp</string>
     <string name="disable_status_in_the_profile_photo">Disable Status in the profile photo</string>
     <string name="disable_status_in_the_profile_photo_sum">Disables the circle that appears in the profile photo of each contact when there is new status</string>
-    <string name="download_not_available">Download not available or media has not been fully downloaded</string>
+    <string name="download_not_available">Please wait until it is fully downloaded in WhatsApp before trying again.</string>
     <string name="call_recording_title">Call Recording</string>
     <string name="call_recording_enable">Enable Call Recording</string>
     <string name="call_recording_enable_sum">Record incoming and outgoing calls (Voice &amp; Video) as audio.\n ⚠️ Experimental — may not work properly. A stable version is coming very soon!</string>
@@ -579,7 +585,7 @@ You can still try it, but please wait for a stable version — it will be launch
     <string name="entry_point_home_menu">Home Screen Menu</string>
     <string name="entry_point_wa_settings">WhatsApp Settings [Top Right Icon]</string>
     <string name="entry_point_none">Disabled</string>
-    <string name="disable_ads">Disable Ads</string>
+    <string name="disable_ads">Disable Status Ads</string>
     <string name="logs">Logs</string>
     <string name="start_logging">Start Logging</string>
     <string name="stop_logging">Stop Logging</string>
@@ -603,7 +609,7 @@ You can still try it, but please wait for a stable version — it will be launch
     <string name="root_required_title">Root Access Required</string>
     <string name="root_required_message">To capture logs from WhatsApp, root access is required to access system logcat.</string>
     <string name="grant_root_access">Grant Root Access</string>
-    <string name="disable_ads_sum">Blocks ads from appearing in WhatsApp</string>
+    <string name="disable_ads_sum">Blocks ads from appearing in WhatsApp status stories</string>
     <string name="root_required_for_logs">Root access is required to use this feature</string>
     <string name="checking_root_access_button">Checking...</string>
     <string name="root_request_in_progress">Requesting root access, please check your root manager...</string>
@@ -632,4 +638,14 @@ You can still try it, but please wait for a stable version — it will be launch
     <string name="waenhancer_settings">WaEnhancerX Settings</string>
     <string name="show_hook_toast">Show Hook Loading Toast</string>
     <string name="show_hook_toast_sum">Show toast and snackbar notifications during hook initialization and when hooks finish loading</string>
+    <string name="admin_emoji_title">Group Admin Indicator Text/Emoji</string>
+    <string name="admin_emoji_sum">Text/Emoji to display for group admins indicators (e.g., 👑, 🛡️, ⭐)</string>
+    <string name="update_frequency_title">Next update alert</string>
+    <string name="update_frequency_summary">Configure when to show the update dialog again for an ignored version</string>
+    <string name="update_freq_restart">will be shown after WhatsApp Restart</string>
+    <string name="update_freq_1h">will be shown after 1 hour</string>
+    <string name="update_freq_12h">will be shown after 12 hours</string>
+    <string name="update_freq_24h">will be shown after 24 hours</string>
+    <string name="update_freq_never">will never be shown</string>
+    <string name="update_ignored_toast">Next update alert for %1$s %2$s</string>
 </resources>

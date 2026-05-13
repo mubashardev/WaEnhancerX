@@ -7,7 +7,7 @@ import android.util.Log;
 import androidx.preference.PreferenceManager;
 import com.waenhancer.App;
 import com.waenhancer.services.LogService;
-import com.waenhancer.xposed.core.FeatureLoader;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -78,7 +78,7 @@ public class LogManager {
         File logFolder = getLogFolder(null);
         if (logFolder == null) return;
 
-        String fileName = FeatureLoader.PACKAGE_BUSINESS.equals(packageName) ? LOG_FILE_BUSINESS : LOG_FILE_WPP;
+        String fileName = "com.whatsapp.w4b".equals(packageName) ? LOG_FILE_BUSINESS : LOG_FILE_WPP;
         File logFile = new File(logFolder, fileName);
         
         synchronized (fileLock) {
@@ -116,7 +116,7 @@ public class LogManager {
         File logFolder = getLogFolder(null);
         if (logFolder == null) return "Log storage not available";
         
-        String fileName = FeatureLoader.PACKAGE_BUSINESS.equals(packageName) ? LOG_FILE_BUSINESS : LOG_FILE_WPP;
+        String fileName = "com.whatsapp.w4b".equals(packageName) ? LOG_FILE_BUSINESS : LOG_FILE_WPP;
         File logFile = new File(logFolder, fileName);
 
         if (!logFile.exists() || logFile.length() == 0) return "";
@@ -139,7 +139,7 @@ public class LogManager {
         File logFolder = getLogFolder(null);
         if (logFolder == null) return;
         
-        String fileName = FeatureLoader.PACKAGE_BUSINESS.equals(packageName) ? LOG_FILE_BUSINESS : LOG_FILE_WPP;
+        String fileName = "com.whatsapp.w4b".equals(packageName) ? LOG_FILE_BUSINESS : LOG_FILE_WPP;
         File logFile = new File(logFolder, fileName);
         synchronized (fileLock) {
             if (logFile.exists()) logFile.delete();

@@ -40,6 +40,10 @@
 -keep class org.luckypray.dexkit.** { *; }
 -keep class com.waenhancer.xposed.utils.ResId** { *; }
 
+# Keep Firebase classes accessed via reflection
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+
 # Support for Xposed libraries
 -keep class de.robv.android.xposed.** { *; }
 -dontwarn de.robv.android.xposed.**

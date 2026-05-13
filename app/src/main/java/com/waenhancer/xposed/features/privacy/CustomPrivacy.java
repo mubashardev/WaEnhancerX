@@ -239,6 +239,7 @@ public class CustomPrivacy extends Feature {
 
     private AlertDialogWpp createPrivacyDialog(Activity activity, String number) {
         AlertDialogWpp builder = new AlertDialogWpp(activity);
+        builder.setFullHeight(true);
         builder.setTitle(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.custom_privacy, "Custom Privacy"));
 
         String[] items = {

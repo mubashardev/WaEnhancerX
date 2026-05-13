@@ -52,19 +52,5 @@ public class PrivacyFragment extends BasePreferenceFragment {
         }
     }
     
-    @Override
-    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-        super.onViewCreated(view, savedInstanceState);
-        
-        // Handle scroll to preference from search
-        if (getActivity() != null && getActivity().getIntent() != null) {
-            String scrollToKey = getActivity().getIntent().getStringExtra("scroll_to_preference");
-            if (scrollToKey != null) {
-                scrollToPreference(scrollToKey);
-                // Clear the intent extra
-                getActivity().getIntent().removeExtra("scroll_to_preference");
-            }
-        }
-    }
 
 }

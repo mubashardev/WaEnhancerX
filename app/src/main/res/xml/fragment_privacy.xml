@@ -127,6 +127,10 @@
             app:key="hidestatusview"
             app:summary="@string/hidestatusview_sum"
             app:title="@string/hidestatusview" />
+        <rikka.material.preference.MaterialSwitchPreference
+            app:key="disable_ads"
+            app:summary="@string/disable_ads_sum"
+            app:title="@string/disable_ads" />
     </PreferenceCategory>
 
     <PreferenceCategory

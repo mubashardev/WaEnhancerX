@@ -168,12 +168,10 @@ public class SeenTick extends Feature {
                 var position = (int) param.args[1];
                 var list = (List<?>) XposedHelpers.getObjectField(param.args[0], fieldList.getName());
                 var object = list.get(position);
-                if (!FMessageWpp.TYPE.isInstance(object)) {
-                    if (cachedStatusFMessageField == null) {
-                        cachedStatusFMessageField = ReflectionUtils.findFieldUsingFilter(object.getClass(), field -> FMessageWpp.TYPE.isAssignableFrom(field.getType()));
-                        cachedStatusFMessageField.setAccessible(true);
-                    }
-                    object = cachedStatusFMessageField.get(object);
+                object = ReflectionUtils.findFMessageInObject(object, FMessageWpp.TYPE, FMessageWpp.Key.TYPE, classLoader);
+                if (object == null) {
+                    ;
+                    return;
                 }
                 var fMessage = new FMessageWpp(object);
                 statuses.clear();
@@ -203,20 +201,7 @@ public class SeenTick extends Feature {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                     if (!prefs.getBoolean("hidestatusview", false)) return;
-                    var fMessageField = ReflectionUtils.getFieldByExtendType(viewStatusField.getDeclaringClass(), FMessageWpp.TYPE);
-                    var fMessageObj = ReflectionUtils.getObjectField(fMessageField, param.thisObject);
-                    if (fMessageObj == null) {
-                        var instance = ReflectionUtils.getObjectField(viewStatusField, param.thisObject);
-                        if (cachedViewButtonFMessageField == null) {
-                            cachedViewButtonFMessageField = ReflectionUtils.findFieldUsingFilterIfExists(instance.getClass(), field1 -> FMessageWpp.TYPE.isAssignableFrom(field1.getType()));
-                            if (cachedViewButtonFMessageField != null) {
-                                cachedViewButtonFMessageField.setAccessible(true);
-                            }
-                        }
-                        if (cachedViewButtonFMessageField != null) {
-                            fMessageObj = ReflectionUtils.getObjectField(cachedViewButtonFMessageField, instance);
-                        }
-                    }
+                    var fMessageObj = ReflectionUtils.findFMessageInObject(param.thisObject, FMessageWpp.TYPE, FMessageWpp.Key.TYPE, classLoader);
                     if (fMessageObj == null) {
                         logDebug("Failed to find fMessageField");
                         return;
@@ -255,16 +240,17 @@ public class SeenTick extends Feature {
         } else {
 
             MenuStatusListener.registerStatusListener(
-                    new MenuStatusListener.onMenuItemStatusListener() {
+                    new MenuStatusListener.OnMenuItemStatusListener() {
                         @Override
-                        public MenuItem addMenu(Menu menu, FMessageWpp fMessage) {
+                        public MenuItem addMenu(Menu menu, List<FMessageWpp> fMessageList, int currentIndex) {
                             if (menu.findItem(R.string.send_blue_tick) != null) return null;
+                            var fMessage = fMessageList.get(currentIndex);
                             if (fMessage.getKey().isFromMe) return null;
                             return menu.add(0, R.string.send_blue_tick, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.send_blue_tick, "Send blue tick"));
                         }
 
                         @Override
-                        public void onClick(MenuItem item, Object fragmentInstance, FMessageWpp fMessageWpp) {
+                        public void onClick(MenuItem item, Object fragmentInstance, List<FMessageWpp> fMessageList, int currentIndex) {
                             sendBlueTickStatus(currentJid);
                             Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.sending_read_blue_tick, "Sending read receipt..."), Toast.LENGTH_SHORT);
                         }
@@ -310,31 +296,21 @@ public class SeenTick extends Feature {
         }
 
         MenuStatusListener.registerStatusListener(
-                new MenuStatusListener.onMenuItemStatusListener() {
+                new MenuStatusListener.OnMenuItemStatusListener() {
                     @Override
-                    public MenuItem addMenu(Menu menu, FMessageWpp fMessage) {
+                    public MenuItem addMenu(Menu menu, List<FMessageWpp> fMessageList, int currentIndex) {
                         if (menu.findItem(R.string.read_all_mark_as_read) != null) return null;
+                        var fMessage = fMessageList.get(currentIndex);
                         if (fMessage.getKey().isFromMe) return null;
                         return menu.add(0, R.string.read_all_mark_as_read, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.read_all_mark_as_read, "Read all (Mark as read)"));
                     }
 
                     @Override
-                    public void onClick(MenuItem item, Object fragmentInstance, FMessageWpp fMessageWpp) {
+                    public void onClick(MenuItem item, Object fragmentInstance, List<FMessageWpp> fMessageList, int currentIndex) {
                         try {
                             statuses.clear();
-                            var listStatusField = ReflectionUtils.getFieldByExtendType(fragmentInstance.getClass(), List.class);
-                            var listStatus = (List) listStatusField.get(fragmentInstance);
-                            for (int i = 0; i < listStatus.size(); i++) {
-                                var obj = listStatus.get(i);
-                                if (obj == null) continue;
-                                if (!FMessageWpp.TYPE.isInstance(obj)) {
-                                    var fieldFMessage = ReflectionUtils.getFieldByExtendType(obj.getClass(), FMessageWpp.TYPE);
-                                    if (fieldFMessage != null) {
-                                        obj = fieldFMessage.get(obj);
-                                    }
-                                }
-                                if (obj == null) continue;
-                                var fMessage = new FMessageWpp(obj);
+                            for (FMessageWpp fMessage : fMessageList) {
+                                if (fMessage == null) continue;
                                 var messageId = fMessage.getKey().messageID;
                                 if (!fMessage.getKey().isFromMe) {
                                     statuses.add(fMessage);
@@ -361,18 +337,7 @@ public class SeenTick extends Feature {
             @Override
             @SuppressLint("DiscouragedApi")
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                var messageField = ReflectionUtils.getFieldByExtendType(menuMethod.getDeclaringClass(), FMessageWpp.TYPE);
-                Object fmessageObj = null;
-                if (messageField != null) {
-                    fmessageObj = messageField.get(param.thisObject);
-                }
-                if (fmessageObj == null) {
-                    var keyField = ReflectionUtils.getFieldByExtendType(param.thisObject.getClass(), FMessageWpp.Key.TYPE);
-                    if (keyField != null) {
-                        var keyObj = keyField.get(param.thisObject);
-                        fmessageObj = WppCore.getFMessageFromKey(keyObj);
-                    }
-                }
+                Object fmessageObj = ReflectionUtils.findFMessageInObject(param.thisObject, FMessageWpp.TYPE, FMessageWpp.Key.TYPE, classLoader);
                 if (fmessageObj == null) return;
                 FMessageWpp fMessage = new FMessageWpp(fmessageObj);
                 if (!fMessage.isViewOnce()) return;

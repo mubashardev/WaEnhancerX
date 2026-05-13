@@ -409,7 +409,7 @@ public abstract class EmbeddedBasePreferenceFragment extends PreferenceFragmentC
         setPreferenceState("dotonline", !freezelastseen);
 
         boolean separategroups = mPrefs.getBoolean("separategroups", false);
-        setPreferenceState("filtergroups", !separategroups);
+        setPreferenceState("filtergroups", false); // Forced disabled
 
         updateGroupPref("separategroups", isSeparateGroupSupported(),
                 R.string.separate_groups_sum,

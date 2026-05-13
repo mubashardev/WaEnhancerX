@@ -46,6 +46,15 @@ public class AlertDialogWpp {
     private View mCustomView;
     private CharSequence[] mItems;
     private DialogInterface.OnClickListener mItemsListener;
+    private CharSequence[] mMultiChoiceItems;
+    private boolean[] mCheckedItems;
+    private DialogInterface.OnMultiChoiceClickListener mMultiChoiceListener;
+    private boolean mIsFullHeight = false;
+
+    public AlertDialogWpp setFullHeight(boolean fullHeight) {
+        mIsFullHeight = fullHeight;
+        return this;
+    }
 
     public static void initDialog(ClassLoader loader) {
         try {
@@ -55,7 +64,7 @@ public class AlertDialogWpp {
                 return;
             }
             Class<?> alertDialogClass = getAlertDialog.getReturnType();
-            XposedBridge.log("[WAE] AlertDialogWpp: Initializing with class " + alertDialogClass.getName());
+            ;
 
             // Try to find methods by name first (more reliable if not obfuscated)
             setMessageMethod = null;
@@ -67,13 +76,13 @@ public class AlertDialogWpp {
                     method -> method.getParameterCount() == 1 && 
                     method.getParameterTypes()[0].equals(CharSequence.class));
             }
-            if (setMessageMethod != null) XposedBridge.log("[WAE] AlertDialogWpp: Found setMessageMethod: " + setMessageMethod.getName());
+            if (setMessageMethod != null) ;
 
             setItemsMethod = ReflectionUtils.findMethodUsingFilterIfExists(alertDialogClass,
                     method -> method.getParameterCount() == 2 &&
                     ((method.getParameterTypes()[0].equals(DialogInterface.OnClickListener.class) && CharSequence[].class.isAssignableFrom(method.getParameterTypes()[1])) ||
                      (CharSequence[].class.isAssignableFrom(method.getParameterTypes()[0]) && method.getParameterTypes()[1].equals(DialogInterface.OnClickListener.class))));
-            if (setItemsMethod != null) XposedBridge.log("[WAE] AlertDialogWpp: Found setItemsMethod: " + setItemsMethod.getName());
+            if (setItemsMethod != null) ;
 
             setMultiChoiceItemsMethod = ReflectionUtils.findMethodUsingFilterIfExists(alertDialogClass,
                     method -> method.getParameterCount() == 3 &&
@@ -87,7 +96,7 @@ public class AlertDialogWpp {
                     method.getParameterCount() == 2 && 
                     ((method.getParameterTypes()[0].equals(DialogInterface.OnClickListener.class) && CharSequence.class.isAssignableFrom(method.getParameterTypes()[1])) ||
                      (CharSequence.class.isAssignableFrom(method.getParameterTypes()[0]) && method.getParameterTypes()[1].equals(DialogInterface.OnClickListener.class))));
-                XposedBridge.log("[WAE] AlertDialogWpp: Found " + buttons.length + " button methods");
+                ;
             } catch (Exception ignored) {}
 
             setNegativeButtonMethod = null;
@@ -116,11 +125,11 @@ public class AlertDialogWpp {
                     setNeutralButtonMethod = buttons[1];
                 }
                 
-                XposedBridge.log("[WAE] AlertDialogWpp: Using button fallback mapping (Pos=" + setPositiveButtonMethod.getName() + ")");
+                ;
             }
 
             isAvailable = true;
-            XposedBridge.log("[WAE] AlertDialogWpp initialized successfully");
+            ;
             logClassMethods(alertDialogClass);
         } catch (Throwable e) {
             isAvailable = false;
@@ -132,9 +141,9 @@ public class AlertDialogWpp {
     private static void logClassMethods(Class<?> clazz) {
         XposedBridge.log("[WAE] --- Methods for " + clazz.getName() + " ---");
         for (Method m : clazz.getDeclaredMethods()) {
-            XposedBridge.log("[WAE] " + m.getReturnType().getSimpleName() + " " + m.getName() + "(" + Arrays.toString(m.getParameterTypes()) + ")");
+            ;
         }
-        XposedBridge.log("[WAE] ---------------------------------------");
+        ;
     }
 
 
@@ -259,6 +268,9 @@ public class AlertDialogWpp {
 
 
     public AlertDialogWpp setMultiChoiceItems(CharSequence[] items, boolean[] checkedItems, DialogInterface.OnMultiChoiceClickListener listener) {
+        mMultiChoiceItems = items;
+        mCheckedItems = checkedItems;
+        mMultiChoiceListener = listener;
         mAlertDialog.setMultiChoiceItems(items, checkedItems, listener);
         if (!shouldUseSystem()) {
             try {
@@ -611,23 +623,27 @@ public class AlertDialogWpp {
                 // Scrollable content
                 androidx.core.widget.NestedScrollView scrollView = new androidx.core.widget.NestedScrollView(mContext);
                 android.widget.LinearLayout.LayoutParams scrollParams = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1.0f);
                 scrollView.setLayoutParams(scrollParams);
+                
+                android.widget.LinearLayout scrollContentLayout = new android.widget.LinearLayout(mContext);
+                scrollContentLayout.setOrientation(android.widget.LinearLayout.VERTICAL);
+                scrollContentLayout.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT));
+                scrollView.addView(scrollContentLayout);
                 
                 if (mMessageText != null) {
                     android.widget.TextView messageView = new android.widget.TextView(mContext);
                     messageView.setText(mMessageText);
                     messageView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
                     messageView.setTextColor(secondaryTextColor);
-                    scrollView.addView(messageView);
-                    mainLayout.addView(scrollView);
-                } else if (mItems == null && mCustomView == null) {
+                    scrollContentLayout.addView(messageView);
+                } else if (mItems == null && mCustomView == null && mMultiChoiceItems == null) {
                     android.widget.TextView messageView = new android.widget.TextView(mContext);
                     messageView.setText("Are you sure you want to proceed?");
                     messageView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15);
                     messageView.setTextColor(secondaryTextColor);
-                    scrollView.addView(messageView);
-                    mainLayout.addView(scrollView);
+                    scrollContentLayout.addView(messageView);
                 }
                 
                 if (mCustomView != null) {
@@ -642,7 +658,7 @@ public class AlertDialogWpp {
                     customParams.topMargin = dp8;
                     customParams.bottomMargin = dp8;
                     mCustomView.setLayoutParams(customParams);
-                    mainLayout.addView(mCustomView);
+                    scrollContentLayout.addView(mCustomView);
                 }
                 
                 if (mItems != null) {
@@ -679,8 +695,128 @@ public class AlertDialogWpp {
                         });
                         itemsLayout.addView(itemView);
                     }
-                    mainLayout.addView(itemsLayout);
+                    scrollContentLayout.addView(itemsLayout);
                 }
+                
+                if (mMultiChoiceItems != null) {
+                    android.widget.LinearLayout itemsLayout = new android.widget.LinearLayout(mContext);
+                    itemsLayout.setOrientation(android.widget.LinearLayout.VERTICAL);
+                    android.widget.LinearLayout.LayoutParams itemsParams = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                    itemsParams.topMargin = dp8;
+                    itemsParams.bottomMargin = dp8;
+                    itemsLayout.setLayoutParams(itemsParams);
+                    
+                    for (int i = 0; i < mMultiChoiceItems.length; i++) {
+                        final int index = i;
+                        android.widget.LinearLayout itemRow = new android.widget.LinearLayout(mContext);
+                        itemRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                        itemRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                        android.widget.LinearLayout.LayoutParams rowLp = new android.widget.LinearLayout.LayoutParams(
+                                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                        itemRow.setLayoutParams(rowLp);
+                        itemRow.setPadding((int) (16 * density), (int) (12 * density), (int) (16 * density), (int) (12 * density));
+                        
+                        android.widget.TextView labelView = new android.widget.TextView(mContext);
+                        android.widget.LinearLayout.LayoutParams labelLp = new android.widget.LinearLayout.LayoutParams(
+                                0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+                        labelView.setLayoutParams(labelLp);
+                        labelView.setText(mMultiChoiceItems[index]);
+                        labelView.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16);
+                        labelView.setTextColor(primaryTextColor);
+                        
+                        android.widget.CompoundButton switchView;
+                        try {
+                            android.content.Context modContext = mContext.createPackageContext("com.waenhancer", android.content.Context.CONTEXT_IGNORE_SECURITY);
+                            int themeResId = isDarkMode ? 
+                                    com.google.android.material.R.style.Theme_Material3_Dark : 
+                                    com.google.android.material.R.style.Theme_Material3_Light;
+                            android.view.ContextThemeWrapper themedContext = new android.view.ContextThemeWrapper(modContext, themeResId);
+                            switchView = new com.google.android.material.materialswitch.MaterialSwitch(themedContext);
+                        } catch (Throwable t) {
+                            de.robv.android.xposed.XposedBridge.log("[WAE] MaterialSwitch direct creation failed: " + t.getMessage());
+                            try {
+                                switchView = (android.widget.CompoundButton) de.robv.android.xposed.XposedHelpers.newInstance(
+                                        de.robv.android.xposed.XposedHelpers.findClass("com.google.android.material.materialswitch.MaterialSwitch", AlertDialogWpp.class.getClassLoader()), mContext);
+                            } catch (Throwable t1) {
+                                try {
+                                    switchView = (android.widget.CompoundButton) de.robv.android.xposed.XposedHelpers.newInstance(
+                                            de.robv.android.xposed.XposedHelpers.findClass("androidx.appcompat.widget.SwitchCompat", AlertDialogWpp.class.getClassLoader()), mContext);
+                                } catch (Throwable t2) {
+                                    switchView = new android.widget.Switch(mContext);
+                                }
+                            }
+                        }
+                        final android.widget.CompoundButton finalSwitchView = switchView;
+                        android.widget.LinearLayout.LayoutParams checkLp = new android.widget.LinearLayout.LayoutParams(
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT);
+                        finalSwitchView.setLayoutParams(checkLp);
+                        finalSwitchView.setChecked(mCheckedItems != null && index < mCheckedItems.length && mCheckedItems[index]);
+                        finalSwitchView.setClickable(false);
+                        
+                        try {
+                            // Multi-state color lists so unchecked switches are not colored
+                            int[][] states = new int[][] {
+                                new int[] { android.R.attr.state_checked },
+                                new int[] { -android.R.attr.state_checked }
+                            };
+                            int[] thumbColors = new int[] {
+                                isDarkMode ? 0xFF0A3F1F : 0xFF0B6623, // Forest/dark green thumb
+                                isDarkMode ? 0xFF9E9E9E : 0xFFECECEC  // Neutral grey thumb
+                            };
+                            int[] trackColors = new int[] {
+                                isDarkMode ? 0xFF57DF85 : 0xFF50D179, // Vibrant light green track
+                                isDarkMode ? 0x33FFFFFF : 0x33000000  // Translucent neutral track
+                            };
+                            android.content.res.ColorStateList thumbStateList = new android.content.res.ColorStateList(states, thumbColors);
+                            android.content.res.ColorStateList trackStateList = new android.content.res.ColorStateList(states, trackColors);
+                            
+                            if (finalSwitchView instanceof com.google.android.material.materialswitch.MaterialSwitch) {
+                                ((com.google.android.material.materialswitch.MaterialSwitch) finalSwitchView).setThumbTintList(thumbStateList);
+                                ((com.google.android.material.materialswitch.MaterialSwitch) finalSwitchView).setTrackTintList(trackStateList);
+                            } else {
+                                de.robv.android.xposed.XposedHelpers.callMethod(finalSwitchView, "setThumbTintList", thumbStateList);
+                                de.robv.android.xposed.XposedHelpers.callMethod(finalSwitchView, "setTrackTintList", trackStateList);
+                            }
+                        } catch (Throwable t) {
+                            try {
+                                int[][] states = new int[][] {
+                                    new int[] { android.R.attr.state_checked },
+                                    new int[] { -android.R.attr.state_checked }
+                                };
+                                int[] buttonColors = new int[] {
+                                    accentColor,
+                                    isDarkMode ? 0xFF9E9E9E : 0xFFECECEC
+                                };
+                                finalSwitchView.setButtonTintList(new android.content.res.ColorStateList(states, buttonColors));
+                            } catch (Throwable ignored) {}
+                        }
+                        
+                        itemRow.addView(labelView);
+                        itemRow.addView(finalSwitchView);
+                        
+                        android.graphics.drawable.ColorDrawable normalBg = new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT);
+                        android.content.res.ColorStateList itemRippleColor = android.content.res.ColorStateList.valueOf(secondaryTextColor & 0x15FFFFFF | 0x15000000);
+                        android.graphics.drawable.RippleDrawable itemRipple = new android.graphics.drawable.RippleDrawable(itemRippleColor, normalBg, null);
+                        itemRow.setBackground(itemRipple);
+                        
+                        itemRow.setOnClickListener(v -> {
+                            boolean isChecked = !finalSwitchView.isChecked();
+                            finalSwitchView.setChecked(isChecked);
+                            if (mCheckedItems != null && index < mCheckedItems.length) {
+                                mCheckedItems[index] = isChecked;
+                            }
+                            if (mMultiChoiceListener != null) {
+                                mMultiChoiceListener.onClick(dialog, index, isChecked);
+                            }
+                        });
+                        
+                        itemsLayout.addView(itemRow);
+                    }
+                    scrollContentLayout.addView(itemsLayout);
+                }
+                
+                mainLayout.addView(scrollView);
                 
                 // Bottom Buttons Layout (Stacked Vertically for Spacious Premium Look)
                 android.widget.LinearLayout buttonsLayout = new android.widget.LinearLayout(mContext);
@@ -760,9 +896,10 @@ public class AlertDialogWpp {
                     public void onGlobalLayout() {
                         mainLayout.getViewTreeObserver().removeOnGlobalLayoutListener(this);
                         int measuredHeight = mainLayout.getHeight();
-                        if (measuredHeight > halfScreenHeight) {
+                        int maxAllowedHeight = mIsFullHeight ? (int) capHeight : halfScreenHeight;
+                        if (mIsFullHeight || measuredHeight > maxAllowedHeight) {
                             android.view.ViewGroup.LayoutParams lp = mainLayout.getLayoutParams();
-                            lp.height = halfScreenHeight;
+                            lp.height = maxAllowedHeight;
                             mainLayout.setLayoutParams(lp);
                             
                             android.widget.LinearLayout.LayoutParams sLp = (android.widget.LinearLayout.LayoutParams) scrollView.getLayoutParams();

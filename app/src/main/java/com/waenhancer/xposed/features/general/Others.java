@@ -21,6 +21,7 @@ import androidx.annotation.NonNull;
 import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.components.FMessageWpp;
+import com.waenhancer.xposed.core.db.MessageDeviceSourceStore;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.features.listeners.ConversationItemListener;
 import com.waenhancer.xposed.utils.AnimationUtil;
@@ -40,7 +41,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XC_MethodReplacement;
@@ -51,8 +54,15 @@ import de.robv.android.xposed.XposedHelpers;
 import okhttp3.OkHttpClient;
 
 public class Others extends Feature {
+    private static final String DEVICE_SOURCE_SUFFIX_FIELD = "wae_device_source_suffix";
+    private static final String DEVICE_SOURCE_GUARD_FIELD = "wae_device_source_guard";
+
 
     private static java.lang.reflect.Field cachedAbsViewField;
+    private static final Set<String> dumpedMessageIds = ConcurrentHashMap.newKeySet();
+    private static final Set<String> dumpedMessageRowViews = ConcurrentHashMap.newKeySet();
+    private static final String PRIMARY_DEVICE_EMOJI = " \uD83D\uDCF1";
+    private static final String LINKED_DEVICE_EMOJI = " \uD83D\uDDA5\uFE0F";
 
     public static HashMap<Integer, Boolean> propsBoolean = new HashMap<>();
     public static HashMap<Integer, Integer> propsInteger = new HashMap<>();
@@ -64,7 +74,9 @@ public class Others extends Feature {
 
     @Override
     public void doHook() throws Exception {
-        XposedBridge.log("[WAE_Others] doHook() started");
+        if (DEBUG) {
+            ;
+        }
 
         // receivedIncomingTimestamp
 
@@ -90,6 +102,7 @@ public class Others extends Feature {
         var animationEmojis = prefs.getBoolean("animation_emojis", false);
         var disableProfileStatus = prefs.getBoolean("disable_profile_status", false);
         var disableExpiration = prefs.getBoolean("disable_expiration", false);
+        var disableAds = prefs.getBoolean("disable_ads", false);
 
         propsInteger.put(3877, oldStatus ? igstatus ? 2 : 0 : 2);
 
@@ -244,6 +257,9 @@ public class Others extends Feature {
         animationList();
 
         stampCopiedMessage();
+        debugDumpMessageMetadata();
+        hookMessageDeviceSourceTextView();
+        messageDeviceSourceTag();
 
         try {
             doubleTapReaction();
@@ -261,6 +277,10 @@ public class Others extends Feature {
 
         if (disableExpiration) {
             disableExpirationVersion(classLoader);
+        }
+
+        if (disableAds) {
+            disableAds();
         }
 
         if (!filterSeen) {
@@ -295,6 +315,11 @@ public class Others extends Feature {
         });
     }
 
+    private void disableAds() {
+        propsBoolean.put(22904, true);
+        propsBoolean.put(14306, false);
+    }
+
 
     private void disablePhotoProfileStatus() throws Exception {
         var refreshStatusClass = Unobfuscator.loadRefreshStatusClass(classLoader);
@@ -306,7 +331,7 @@ public class Others extends Feature {
         logDebug("disablePhotoProfileStatus", Unobfuscator.getMethodDescriptor(method));
         logDebug("disablePhotoProfileStatus Field", Unobfuscator.getFieldDescriptor(field));
         if (field == null) {
-            XposedBridge.log("WaEnhancer: disablePhotoProfileStatus skipped because refresh status field was not found");
+            ;
             return;
         }
         XposedBridge.hookMethod(method, new XC_MethodHook() {
@@ -482,6 +507,189 @@ public class Others extends Feature {
         });
     }
 
+    private void debugDumpMessageMetadata() {
+        if (!DEBUG) return;
+
+        ConversationItemListener.conversationListeners.add(new ConversationItemListener.OnConversationItemListener() {
+            @Override
+            public void onItemBind(FMessageWpp fMessage, ViewGroup viewGroup) {
+                try {
+                    var key = fMessage.getKey();
+                    if (key == null || TextUtils.isEmpty(key.messageID)) return;
+                    if (!dumpedMessageIds.add(key.messageID)) return;
+                    logDebug("MessageMetaDump", fMessage.dumpDebugInfo());
+                } catch (Throwable t) {
+                    logDebug("MessageMetaDumpError", t);
+                }
+            }
+        });
+    }
+
+    private void messageDeviceSourceTag() {
+        if (!prefs.getBoolean("message_device_source", true)) return;
+
+        ConversationItemListener.conversationListeners.add(new ConversationItemListener.OnConversationItemListener() {
+            @Override
+            public void onItemBind(FMessageWpp fMessage, ViewGroup viewGroup) {
+                var dateTextView = (TextView) viewGroup.findViewById(Utils.getID("date", "id"));
+                if (dateTextView == null) return;
+                var key = fMessage.getKey();
+                String messageId = key != null ? key.messageID : null;
+                XposedHelpers.setAdditionalInstanceField(dateTextView, "wae_device_source_message_id", messageId);
+                int resolvedDeviceId = resolveMessageDeviceId(messageId, fMessage);
+                XposedHelpers.setAdditionalInstanceField(dateTextView, DEVICE_SOURCE_SUFFIX_FIELD, getDeviceEmojiSuffix(resolvedDeviceId));
+
+                dateTextView.post(() -> {
+                    Object currentId = XposedHelpers.getAdditionalInstanceField(dateTextView, "wae_device_source_message_id");
+                    if (!Objects.equals(currentId, messageId)) return;
+                    if (DEBUG) {
+                        logDebug("MessageDeviceSourceBind", "messageId=" + messageId
+                                + ", deviceId=" + resolvedDeviceId
+                                + ", deviceJid=" + fMessage.getDeviceJid()
+                                + ", before=" + dateTextView.getText());
+                    }
+                    bindMessageDeviceSource(dateTextView, resolvedDeviceId);
+                    applyDeviceSourceToMatchingTextViews(viewGroup, dateTextView, getDeviceEmojiSuffix(resolvedDeviceId));
+                    if (DEBUG && messageId != null && dumpedMessageRowViews.add(messageId)) {
+                        logDebug("MessageDeviceSourceRowViews", dumpRowTextViews(viewGroup));
+                    }
+                    if (DEBUG) {
+                        logDebug("MessageDeviceSourceApplied", "messageId=" + messageId
+                                + ", after=" + dateTextView.getText());
+                    }
+                });
+            }
+        });
+    }
+
+    private int resolveMessageDeviceId(String messageId, FMessageWpp fMessage) {
+        int liveDeviceId = fMessage.getDeviceId();
+        if (liveDeviceId >= 0) {
+            MessageDeviceSourceStore.getInstance().upsertDeviceId(messageId, liveDeviceId);
+            return liveDeviceId;
+        }
+        return MessageDeviceSourceStore.getInstance().getDeviceId(messageId);
+    }
+
+    private void bindMessageDeviceSource(TextView dateTextView, int deviceId) {
+        String baseText = String.valueOf(dateTextView.getText())
+                .replace(PRIMARY_DEVICE_EMOJI, "")
+                .replace(LINKED_DEVICE_EMOJI, "");
+
+        String suffix = getDeviceEmojiSuffix(deviceId);
+        XposedHelpers.setAdditionalInstanceField(dateTextView, DEVICE_SOURCE_SUFFIX_FIELD, suffix);
+        bindMessageDeviceSourceClick(dateTextView, deviceId);
+
+        dateTextView.setText(baseText + suffix);
+    }
+
+    private String getDeviceEmojiSuffix(int deviceId) {
+        if (deviceId == 0) return PRIMARY_DEVICE_EMOJI;
+        if (deviceId > 0) return LINKED_DEVICE_EMOJI;
+        return "";
+    }
+
+    private void applyDeviceSourceToMatchingTextViews(ViewGroup root, TextView anchor, String suffix) {
+        if (suffix.isEmpty()) return;
+        String anchorBase = stripDeviceEmoji(String.valueOf(anchor.getText()));
+        if (TextUtils.isEmpty(anchorBase)) return;
+        int deviceId = getDeviceIdFromSuffix(suffix);
+
+        forEachTextView(root, textView -> {
+            String current = String.valueOf(textView.getText());
+            String base = stripDeviceEmoji(current);
+            if (!anchorBase.equals(base)) return;
+
+            XposedHelpers.setAdditionalInstanceField(textView, DEVICE_SOURCE_SUFFIX_FIELD, suffix);
+            bindMessageDeviceSourceClick(textView, deviceId);
+            if (!current.equals(base + suffix)) {
+                textView.setText(base + suffix);
+            }
+        });
+    }
+
+    private int getDeviceIdFromSuffix(String suffix) {
+        if (PRIMARY_DEVICE_EMOJI.equals(suffix)) return 0;
+        if (LINKED_DEVICE_EMOJI.equals(suffix)) return 1;
+        return -1;
+    }
+
+    private void bindMessageDeviceSourceClick(TextView textView, int deviceId) {
+        if (deviceId < 0) {
+            Utils.setViewClickListener(textView, "device_source", null);
+            return;
+        }
+
+        Utils.setViewClickListener(textView, "device_source", v -> {
+            if (deviceId == 0) {
+                Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(
+                        R.string.message_sent_via_phone,
+                        "This message was sent via Phone"), Toast.LENGTH_SHORT);
+            } else if (deviceId > 0) {
+                Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(
+                        R.string.message_sent_via_linked_device,
+                        "This message was sent via a Linked Device (Desktop/Phone)"), Toast.LENGTH_SHORT);
+            }
+        });
+    }
+
+    private String dumpRowTextViews(ViewGroup root) {
+        StringBuilder sb = new StringBuilder();
+        forEachTextView(root, textView -> {
+            sb.append("id=")
+                    .append(textView.getId())
+                    .append(", class=")
+                    .append(textView.getClass().getSimpleName())
+                    .append(", visibility=")
+                    .append(textView.getVisibility())
+                    .append(", text=")
+                    .append(textView.getText())
+                    .append(" | ");
+        });
+        return sb.toString();
+    }
+
+    private void forEachTextView(View view, java.util.function.Consumer<TextView> consumer) {
+        if (view instanceof TextView textView) {
+            consumer.accept(textView);
+            return;
+        }
+        if (!(view instanceof ViewGroup group)) return;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            forEachTextView(group.getChildAt(i), consumer);
+        }
+    }
+
+    private String stripDeviceEmoji(String text) {
+        return text.replace(PRIMARY_DEVICE_EMOJI, "").replace(LINKED_DEVICE_EMOJI, "");
+    }
+
+    private void hookMessageDeviceSourceTextView() {
+        XposedBridge.hookAllMethods(TextView.class, "setText", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                if (!(param.thisObject instanceof TextView textView)) return;
+                Object suffixObj = XposedHelpers.getAdditionalInstanceField(textView, DEVICE_SOURCE_SUFFIX_FIELD);
+                if (!(suffixObj instanceof String suffix) || suffix.isEmpty()) return;
+                if (Boolean.TRUE.equals(XposedHelpers.getAdditionalInstanceField(textView, DEVICE_SOURCE_GUARD_FIELD))) {
+                    return;
+                }
+
+                String current = String.valueOf(textView.getText());
+                String base = current.replace(PRIMARY_DEVICE_EMOJI, "").replace(LINKED_DEVICE_EMOJI, "");
+                String desired = base + suffix;
+                if (desired.equals(current)) return;
+
+                XposedHelpers.setAdditionalInstanceField(textView, DEVICE_SOURCE_GUARD_FIELD, true);
+                try {
+                    textView.setText(desired);
+                } finally {
+                    XposedHelpers.setAdditionalInstanceField(textView, DEVICE_SOURCE_GUARD_FIELD, false);
+                }
+            }
+        });
+    }
+
     private void animationList() throws Exception {
         var animation = prefs.getString("animation_list", "default");
 
@@ -546,13 +754,13 @@ public class Others extends Feature {
 
     private void sendAudioType(int audio_type) throws Exception {
         var sendAudioTypeMethod = Unobfuscator.loadSendAudioTypeMethod(classLoader);
-        log(Unobfuscator.getMethodDescriptor(sendAudioTypeMethod));
+        logDebug(Unobfuscator.getMethodDescriptor(sendAudioTypeMethod));
         XposedBridge.hookMethod(sendAudioTypeMethod, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 var results = ReflectionUtils.findInstancesOfType(param.args, Integer.class);
                 if (results.size() < 2) {
-                    log("sendAudioTypeMethod size < 2");
+                    logDebug("sendAudioTypeMethod size < 2");
                     return;
                 }
                 var mediaType = results.get(0);
@@ -634,7 +842,7 @@ public class Others extends Feature {
                 var name = WppCore.getContactName(userjid);
                 name = TextUtils.isEmpty(name) ? userjid.getPhoneNumber() : name;
                 if (showOnline)
-                    Utils.showToast(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.toast_online), name), Toast.LENGTH_SHORT);
+                    Utils.showToast(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.toast_online, "%s is online"), name), Toast.LENGTH_SHORT);
                 Tasker.sendTaskerEvent(name, WppCore.stripJID(jid), "contact_online");
             }
         });

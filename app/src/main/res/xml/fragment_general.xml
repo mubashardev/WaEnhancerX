@@ -40,6 +40,7 @@
             app:summary="@string/enable_spy_sum"
             app:title="@string/enable_spy" />
 
+
     </PreferenceCategory>
     
     <PreferenceCategory

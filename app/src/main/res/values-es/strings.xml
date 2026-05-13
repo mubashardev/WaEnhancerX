@@ -414,7 +414,7 @@
     <string name="disable_the_proximity_sensor_sum">Evita que la pantalla se apague al escuchar un audio con el altavoz superior</string>
     <string name="disable_status_in_the_profile_photo">Desactivar estado en la foto de perfil</string>
     <string name="disable_status_in_the_profile_photo_sum">Deshabilita el círculo que aparece en la foto de perfil de cada contacto cuando hay un nuevo estado</string>
-    <string name="download_not_available">La descarga no está disponible o el archivo no se ha descargado completamente</string>
+    <string name="download_not_available">Please wait until it is fully downloaded in WhatsApp before trying again.</string>
     <string name="possible_block_detected">Posible bloqueo detectado</string>
     <string name="block_not_detected">Bloqueo no detectado</string>
     <string name="checking_if_the_contact_is_blocked">Comprobando si el contacto te ha bloqueado...</string>

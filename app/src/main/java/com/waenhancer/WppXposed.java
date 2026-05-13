@@ -60,18 +60,23 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
     @SuppressLint("WorldReadableFiles")
     @Override
     public void handleLoadPackage(XC_LoadPackage.LoadPackageParam lpparam) throws Throwable {
-        XposedBridge.log("[WAE] handleLoadPackage: " + lpparam.packageName + " (process: " + lpparam.processName + ")");
+        if (Utils.DEBUG) {
+            ;
+        }
         var packageName = lpparam.packageName;
         var classLoader = lpparam.classLoader;
 
         if (packageName.equals(BuildConfig.APPLICATION_ID)) {
-            XposedBridge.log("[WAE] Hooking module's own process: " + packageName);
+            if (Utils.DEBUG) {
+                ;
+            }
             XposedHelpers.findAndHookMethod("com.waenhancer.utils.ModuleStatus", lpparam.classLoader, "isModuleActive", XC_MethodReplacement.returnConstant(true));
-            XposedHelpers.findAndHookMethod(PreferenceManager.class.getName(), lpparam.classLoader, "getDefaultSharedPreferencesMode", XC_MethodReplacement.returnConstant(ContextWrapper.MODE_WORLD_READABLE));
             return;
         }
 
-        XposedBridge.log("[WAE] Checking if target is WhatsApp or Business");
+        if (Utils.DEBUG) {
+            ;
+        }
 
         AntiUpdater.hookSession(lpparam);
 
@@ -84,10 +89,14 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
         boolean isBusiness = packageName.equals(FeatureLoader.PACKAGE_BUSINESS);
         boolean isOriginal = App.isOriginalPackage();
 
-        XposedBridge.log("[WAE] isWpp: " + isWpp + ", isBusiness: " + isBusiness + ", isOriginal: " + isOriginal);
+        if (Utils.DEBUG) {
+            ;
+        }
 
         if ((isWpp && isOriginal) || isBusiness) {
-            XposedBridge.log("[WAE] Target verified. Starting FeatureLoader...");
+            if (Utils.DEBUG) {
+                ;
+            }
 
             // Initialize module resources early
             XResManager.moduleResources = XModuleResources.createInstance(MODULE_PATH, null);
@@ -105,65 +114,23 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
                     XposedBridge.log("[WAE] Logging hook setup failed: " + t.getMessage());
                 }
             } else {
-                XposedBridge.log("[WAE] Logging hooks skipped (logging_enabled=false)");
+                if (Utils.DEBUG) {
+                    XposedBridge.log("[WAE] Logging hooks skipped (logging_enabled=false)");
+                }
             }
 
             try {
                 FeatureLoader.start(classLoader, getPref(), lpparam.appInfo.sourceDir);
-                XposedBridge.log("[WAE] FeatureLoader.start completed successfully");
+                if (Utils.DEBUG) {
+                    ;
+                }
             } catch (Throwable t) {
                 XposedBridge.log("[WAE] CRITICAL ERROR in FeatureLoader.start: " + t.getMessage());
                 XposedBridge.log(t);
             }
 
-            installGlobalEnvironmentHooks(lpparam);
             disableSecureFlag();
         }
-    }
-
-    private void installGlobalEnvironmentHooks(XC_LoadPackage.LoadPackageParam lpparam) {
-        // Hook Resources.getText and getLayout to translate module resource IDs
-        // to host-mapped IDs when embedded fragments inflate their layouts.
-        // Only these two methods need hooking — getString/getDrawable/getColor
-        // are NOT hooked globally because both WhatsApp and the module use the
-        // same 0x7f prefix, causing fatal ID collisions.
-        final ThreadLocal<Boolean> inResourceHook = new ThreadLocal<>();
-        XC_MethodHook resourceHook = new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                int id = (int) param.args[0];
-                // Fast path: skip host resources and zero IDs
-                if (id <= 0 || (id & 0xFF000000) != 0x7F000000) return;
-
-                // Fast path: skip if we know it's not one of our resources
-                if (!XResManager.validModuleIds.isEmpty() && !XResManager.validModuleIds.contains(id)) return;
-
-                if (Boolean.TRUE.equals(inResourceHook.get())) return;
-
-                inResourceHook.set(true);
-                try {
-                    int translatedId = XResManager.getHostId(id);
-                    if (translatedId != id) {
-                        param.args[0] = translatedId;
-                    }
-                } finally {
-                    inResourceHook.remove();
-                }
-            }
-        };
-
-        try {
-            XposedHelpers.findAndHookMethod(android.content.res.Resources.class, "getText", int.class, resourceHook);
-        } catch (Throwable t) {
-            XposedBridge.log("[WAE] Failed to hook Resources.getText: " + t.getMessage());
-        }
-        try {
-            XposedHelpers.findAndHookMethod(android.content.res.Resources.class, "getLayout", int.class, resourceHook);
-        } catch (Throwable t) {
-            XposedBridge.log("[WAE] Failed to hook Resources.getLayout: " + t.getMessage());
-        }
-
-        XposedBridge.log("[WAE] Global resource translation hooks installed.");
     }
 
     private void setupLogging(XC_LoadPackage.LoadPackageParam lpparam) {
@@ -311,7 +278,9 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
                     } catch (Exception ignored) {}
                 }
             }
-            XposedBridge.log("[WAE] Valid module IDs populated: " + XResManager.validModuleIds.size());
+            if (Utils.DEBUG) {
+                XposedBridge.log("[WAE] Valid module IDs populated: " + XResManager.validModuleIds.size());
+            }
         } catch (Throwable t) {
             XposedBridge.log("[WAE] Error populating valid IDs: " + t.getMessage());
         }
@@ -337,7 +306,9 @@ public class WppXposed implements IXposedHookLoadPackage, IXposedHookInitPackage
                     } catch (Exception ignored) {}
                 }
             }
-            XposedBridge.log("[WAE] Background resource mapping complete. Total: " + XResManager.moduleToHostIdMap.size());
+            if (Utils.DEBUG) {
+                XposedBridge.log("[WAE] Background resource mapping complete. Total: " + XResManager.moduleToHostIdMap.size());
+            }
         } catch (Throwable t) {
             XposedBridge.log("[WAE] Resource mapping background error: " + t.getMessage());
         }

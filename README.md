@@ -1,6 +1,6 @@
 # WaEnhancerX (WaEnhancer X)
 <div align="center">
-  <p><strong><a href="https://waenhancer.com" target="_blank" rel="follow">WaEnhancer X</a> is a powerful Xposed/LSPosed module that supercharges your WhatsApp experience with advanced privacy, customization, and utility features.</strong></p>
+  <p><strong>WaEnhancer X is a powerful Xposed/LSPosed module that supercharges your WhatsApp experience with advanced privacy, customization, and utility features.</strong></p>
 
   > **Legal & DMCA Disclaimer:** WaEnhancer X is a community-driven, independent fork. It is not affiliated with, endorsed by, or in any way associated with WhatsApp Inc. or Meta Platforms, Inc. This project is provided "as is" for research and educational purposes. Use at your own risk.
 </div>
@@ -79,6 +79,10 @@
 
 
 ---
+
+### ⚖️ Credits & Acknowledgements
+WaEnhancerX originally started as a fork of **WaEnhancer** by **Dev4Mod**. I deeply respect and acknowledge the foundational open-source work provided by the original author.
+
 *Built for the community.*
 
-*Managed by [Mubashar Dev](https://mubashar.dev)*
+*Managed and Optimized by [Mubashar Dev](https://mubashar.dev)*

@@ -19,6 +19,7 @@ import com.waenhancer.adapter.MessageAdapter;
 import com.waenhancer.views.NoScrollListView;
 import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.core.WppCore;
+import com.waenhancer.xposed.core.components.AlertDialogWpp;
 import com.waenhancer.xposed.core.components.FMessageWpp;
 import com.waenhancer.xposed.core.db.MessageHistory;
 import com.waenhancer.xposed.core.db.MessageStore;
@@ -99,33 +100,86 @@ public class ShowEditMessage extends Feature {
 
                     @Override
                     public void onItemBind(FMessageWpp fMessage, ViewGroup viewGroup) {
-                        var textView = (TextView) viewGroup.findViewById(Utils.getID("edit_label", "id"));
-                        if (textView != null) {
-                            if (!textView.getText().toString().contains(strEmoji)) {
-                                textView.getPaint().setUnderlineText(true);
-                                textView.append(strEmoji);
-                                // Set click listener once; it reads the message key tag at click time.
-                                textView.setOnClickListener((v) -> {
-                                    try {
-                                        Object tag = v.getTag();
-                                        if (!(tag instanceof String)) return;
-                                        String msgKey = (String) tag;
-                                        var messages = MessageHistory.getInstance().getMessages(msgKey);
-                                        if (messages == null) {
-                                            messages = new ArrayList<>();
-                                        }
-                                        showBottomDialog(messages);
-                                    } catch (Exception exception0) {
-                                        logDebug(exception0);
+                        var key = fMessage.getKey();
+                        if (key == null || key.messageID == null) {
+                            return;
+                        }
+
+                        var messages = MessageHistory.getInstance().getMessages(key.messageID);
+                        boolean hasHistory = (messages != null && !messages.isEmpty());
+
+                        var dateView = (TextView) viewGroup.findViewById(Utils.getID("date", "id"));
+                        var nativeLabel = findEditHistoryAnchor(viewGroup);
+
+                        // We only show/bind edit history if a native edited label is present, or if we have locally captured edit history
+                        if (nativeLabel != null || hasHistory) {
+                            ;
+                            dumpTextViews(viewGroup);
+                            
+                            // Hide any previous custom injected Edited views first to handle fresh layouts
+                            if (dateView != null) {
+                                ViewGroup parent = (ViewGroup) dateView.getParent();
+                                if (parent != null) {
+                                    View injected = parent.findViewById(17784004);
+                                    if (injected != null) {
+                                        injected.setVisibility(View.GONE);
                                     }
-                                });
+                                }
                             }
-                            // Always stamp the current message's key onto the view.
-                            // The click listener reads this tag at the moment of the tap,
-                            // so it is immune to view recycling and async post() timing.
-                            var key = fMessage.getKey();
-                            if (key != null && key.messageID != null) {
-                                textView.setTag(key.messageID);
+
+                            if (nativeLabel != null) {
+                                ;
+                                bindHistoryClick(nativeLabel, key.messageID, strEmoji, false);
+
+                                // Separate Clicks: We have a dedicated "Edited" label, so remove edit click listener from dateView to keep them completely separate!
+                                if (dateView != null) {
+                                    Utils.setViewClickListener(dateView, "show_edit_message", null);
+                                }
+                            } else {
+                                ;
+                                if (dateView != null) {
+                                    TextView injectedView = injectEditHistoryView(viewGroup, dateView, strEmoji);
+                                    if (injectedView != null) {
+                                        bindHistoryClick(injectedView, key.messageID, strEmoji, false);
+                                    }
+                                    
+                                    // Separate Clicks: Since we injected a separate view, dateView should have no edit click listener
+                                    Utils.setViewClickListener(dateView, "show_edit_message", null);
+                                }
+                            }
+                        } else {
+                            // Recycle Cleanup: Clear listeners and hide custom injected views on non-edited rows to prevent click carries or leaks!
+                            if (nativeLabel != null) {
+                                Utils.setViewClickListener(nativeLabel, "show_edit_message", null);
+                            }
+                            if (dateView != null) {
+                                Utils.setViewClickListener(dateView, "show_edit_message", null);
+                                ViewGroup parent = (ViewGroup) dateView.getParent();
+                                if (parent != null) {
+                                    View injected = parent.findViewById(17784004);
+                                    if (injected != null) {
+                                        injected.setVisibility(View.GONE);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    private void dumpTextViews(View view) {
+                        if (view == null) return;
+                        if (view instanceof TextView) {
+                            TextView tv = (TextView) view;
+                            String resName = "none";
+                            try {
+                                if (tv.getId() != View.NO_ID) {
+                                    resName = tv.getResources().getResourceEntryName(tv.getId());
+                                }
+                            } catch (Exception ignored) {}
+                            de.robv.android.xposed.XposedBridge.log("[WAE] ShowEditMessage ID-DUMP: id=" + tv.getId() + ", resName=" + resName + ", text='" + tv.getText() + "'");
+                        } else if (view instanceof ViewGroup) {
+                            ViewGroup vg = (ViewGroup) view;
+                            for (int i = 0; i < vg.getChildCount(); i++) {
+                                dumpTextViews(vg.getChildAt(i));
                             }
                         }
                     }
@@ -134,73 +188,136 @@ public class ShowEditMessage extends Feature {
 
     }
 
+    private void bindHistoryClick(TextView textView, String messageKey, String indicator, boolean appendIndicator) {
+        if (textView == null) return;
+        textView.getPaint().setUnderlineText(true);
+        Utils.setViewClickListener(textView, "show_edit_message", v -> {
+            try {
+                var messages = MessageHistory.getInstance().getMessages(messageKey);
+                if (messages == null || messages.isEmpty()) {
+                    Utils.showToast("No edit history captured for this message", 0);
+                } else {
+                    showBottomDialog(messages);
+                }
+            } catch (Exception exception0) {
+                logDebug(exception0);
+            }
+        });
+    }
+
+    private TextView injectEditHistoryView(ViewGroup viewGroup, TextView dateView, String indicator) {
+        if (dateView == null) return null;
+        ViewGroup parent = (ViewGroup) dateView.getParent();
+        if (parent == null) return null;
+
+        int injectId = 17784004; // Custom unique ID for injected separate view
+        TextView existing = (TextView) parent.findViewById(injectId);
+        if (existing != null) {
+            existing.setVisibility(View.VISIBLE);
+            return existing;
+        }
+
+        TextView editView = new TextView(dateView.getContext());
+        editView.setId(injectId);
+        editView.setText(" " + indicator + " " + com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.message_original, "Edited"));
+        editView.setTextSize(11.0f);
+        editView.setTextColor(DesignUtils.getUnSeenColor());
+        editView.getPaint().setUnderlineText(true);
+        editView.setAlpha(0.85f);
+        editView.setPadding(4, 0, 4, 0);
+
+        ViewGroup.LayoutParams lp = dateView.getLayoutParams();
+        if (lp != null) {
+            if (lp instanceof LinearLayout.LayoutParams) {
+                LinearLayout.LayoutParams origLp = (LinearLayout.LayoutParams) lp;
+                LinearLayout.LayoutParams newLp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                );
+                newLp.gravity = origLp.gravity;
+                newLp.setMargins(origLp.leftMargin, origLp.topMargin, origLp.rightMargin, origLp.bottomMargin);
+                editView.setLayoutParams(newLp);
+            } else {
+                editView.setLayoutParams(new ViewGroup.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                ));
+            }
+        }
+
+        if (parent instanceof LinearLayout) {
+            LinearLayout linearLayout = (LinearLayout) parent;
+            int index = linearLayout.indexOfChild(dateView);
+            if (linearLayout.getOrientation() == LinearLayout.HORIZONTAL) {
+                linearLayout.addView(editView, index + 1);
+            } else {
+                linearLayout.addView(editView);
+            }
+        } else {
+            parent.addView(editView);
+        }
+
+        return editView;
+    }
+
+    private TextView findEditHistoryAnchor(ViewGroup root) {
+        int editLabelId = Utils.getID("edit_label", "id");
+        if (editLabelId != 0) {
+            View view = root.findViewById(editLabelId);
+            if (view instanceof TextView) {
+                return (TextView) view;
+            }
+        }
+        return findTextViewByResourceName(root, "edit");
+    }
+
+    private TextView findTextViewByResourceName(View view, String token) {
+        if (view instanceof TextView && hasResourceName(view, token)) {
+            return (TextView) view;
+        }
+        if (!(view instanceof ViewGroup)) {
+            return null;
+        }
+        ViewGroup group = (ViewGroup) view;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            TextView child = findTextViewByResourceName(group.getChildAt(i), token);
+            if (child != null) {
+                return child;
+            }
+        }
+        return null;
+    }
+
+    private boolean hasResourceName(View view, String token) {
+        int id = view.getId();
+        if (id == View.NO_ID) {
+            return false;
+        }
+        try {
+            String entryName = view.getResources().getResourceEntryName(id);
+            return entryName != null && entryName.contains(token);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     @SuppressLint("SetTextI18n")
     private void showBottomDialog(ArrayList<MessageHistory.MessageItem> messages) {
         Objects.requireNonNull(WppCore.getCurrentConversation()).runOnUiThread(() -> {
             var ctx = (Context) WppCore.getCurrentConversation();
 
-            var dialog = WppCore.createBottomDialog(ctx);
-            // NestedScrollView
-            NestedScrollView nestedScrollView0 = new NestedScrollView(ctx, null);
-            nestedScrollView0.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-            nestedScrollView0.setFillViewport(true);
-            nestedScrollView0.setFitsSystemWindows(true);
-            // Main Layout
-            LinearLayout linearLayout = new LinearLayout(ctx);
-            linearLayout.setOrientation(LinearLayout.VERTICAL);
-            LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT);
-            linearLayout.setFitsSystemWindows(true);
-            linearLayout.setMinimumHeight(layoutParams.height = Utils.getApplication().getResources().getDisplayMetrics().heightPixels / 4);
-            linearLayout.setLayoutParams(layoutParams);
-            int dip = Utils.dipToPixels(20);
-            linearLayout.setPadding(dip, dip, dip, 0);
-            var bg = DesignUtils.createDrawable("rc_dialog_bg", DesignUtils.getPrimarySurfaceColor());
-            linearLayout.setBackground(bg);
+            var dialog = new AlertDialogWpp(ctx);
+            dialog.setTitle(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.edited_history, "Edit History"));
 
-            // Title View
-            TextView titleView = new TextView(ctx);
-            LinearLayout.LayoutParams layoutParams1 = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            layoutParams1.weight = 1.0f;
-            layoutParams1.setMargins(0, 0, 0, Utils.dipToPixels(10));
-            titleView.setLayoutParams(layoutParams1);
-            titleView.setTextSize(16.0f);
-            titleView.setTextColor(DesignUtils.getPrimaryTextColor());
-            titleView.setTypeface(null, Typeface.BOLD);
-            titleView.setText(R.string.edited_history);
-
-            // List View
             var adapter = new MessageAdapter(ctx, messages);
             ListView listView = new NoScrollListView(ctx);
-            LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.MATCH_PARENT);
-            layoutParams2.weight = 1.0f;
+            LinearLayout.LayoutParams layoutParams2 = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             listView.setLayoutParams(layoutParams2);
             listView.setAdapter(adapter);
-            ImageView imageView0 = new ImageView(ctx);
-            LinearLayout.LayoutParams layoutParams4 = new LinearLayout.LayoutParams(Utils.dipToPixels(70), Utils.dipToPixels(8));
-            layoutParams4.gravity = 17;
-            layoutParams4.setMargins(0, Utils.dipToPixels(5), 0, Utils.dipToPixels(5));
-            var bg2 = DesignUtils.createDrawable("rc_dotline_dialog", Color.BLACK);
-            imageView0.setBackground(DesignUtils.alphaDrawable(bg2, DesignUtils.getPrimaryTextColor(), 33));
-            imageView0.setLayoutParams(layoutParams4);
-            // Button View
-            Button okButton = new Button(ctx);
-            LinearLayout.LayoutParams layoutParams3 = new LinearLayout.LayoutParams(-1, -2);
-            layoutParams3.setMargins(0, Utils.dipToPixels(10), 0, Utils.dipToPixels(10));
-            layoutParams3.gravity = 80;
-            okButton.setLayoutParams(layoutParams3);
-            okButton.setGravity(17);
-            var drawable = DesignUtils.createDrawable("selector_bg", Color.BLACK);
-            okButton.setBackground(DesignUtils.alphaDrawable(drawable, DesignUtils.getPrimaryTextColor(), 25));
-            okButton.setText("OK");
-            okButton.setOnClickListener((View view) -> dialog.dismissDialog());
-            linearLayout.addView(imageView0);
-            linearLayout.addView(titleView);
-            linearLayout.addView(listView);
-            linearLayout.addView(okButton);
-            nestedScrollView0.addView(linearLayout);
-            dialog.setContentView(nestedScrollView0);
-            dialog.setCanceledOnTouchOutside(true);
-            dialog.showDialog();
+
+            dialog.setView(listView);
+            dialog.setPositiveButton("OK", (dialogInterface, which) -> dialogInterface.dismiss());
+            dialog.show();
         });
     }
 

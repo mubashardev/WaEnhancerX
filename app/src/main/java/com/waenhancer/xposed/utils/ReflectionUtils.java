@@ -11,12 +11,16 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import de.robv.android.xposed.XposedHelpers;
+import de.robv.android.xposed.XposedBridge;
 
 @SuppressWarnings("unused")
 public class ReflectionUtils {
@@ -380,4 +384,260 @@ public class ReflectionUtils {
         } catch (Exception ignored) {
         }
     }
+
+    private static Object convertToRealKey(Object unknownKey, ClassLoader classLoader, boolean debug) {
+        if (unknownKey == null) return null;
+        try {
+            Class<?> keyClass = unknownKey.getClass();
+            String id = null;
+            Boolean fromMe = null;
+            Object remoteJid = null;
+
+            // Find id (String field)
+            for (Field f : keyClass.getDeclaredFields()) {
+                f.setAccessible(true);
+                if (f.getType() == String.class) {
+                    id = (String) f.get(unknownKey);
+                    break;
+                }
+            }
+
+            // Find fromMe (boolean field)
+            for (Field f : keyClass.getDeclaredFields()) {
+                f.setAccessible(true);
+                if (f.getType() == boolean.class || f.getType() == Boolean.class) {
+                    fromMe = f.getBoolean(unknownKey);
+                    break;
+                }
+            }
+
+            // Find remoteJid (first non-primitive object field that is not String, preferably status@broadcast)
+            for (Field f : keyClass.getDeclaredFields()) {
+                f.setAccessible(true);
+                if (!f.getType().isPrimitive() && f.getType() != String.class) {
+                    Object val = f.get(unknownKey);
+                    if (val != null) {
+                        String valStr = val.toString();
+                        if ("status@broadcast".equals(valStr)) {
+                            remoteJid = val;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Fallback for remoteJid if not exactly status@broadcast
+            if (remoteJid == null) {
+                for (Field f : keyClass.getDeclaredFields()) {
+                    f.setAccessible(true);
+                    if (!f.getType().isPrimitive() && f.getType() != String.class) {
+                        Object val = f.get(unknownKey);
+                        if (val != null) {
+                            String valStr = val.toString();
+                            if (valStr.contains("@")) {
+                                remoteJid = val;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (debug) {
+                ;
+            }
+
+            if (id != null && fromMe != null && remoteJid != null) {
+                Class<?> realKeyClass = classLoader.loadClass("X.1eC");
+                if (realKeyClass != null) {
+                    Object realKey = XposedHelpers.newInstance(realKeyClass, remoteJid, id, fromMe);
+                    if (debug) {
+                        ;
+                    }
+                    return realKey;
+                }
+            }
+        } catch (Exception e) {
+            XposedBridge.log("[WAE-DEBUG] Error converting key to real: " + e);
+        }
+        return null;
+    }
+
+    public static Object findFMessageInObject(Object object, Class<?> fMessageClass, Class<?> keyClass, ClassLoader classLoader) {
+        return findFMessageInObject(object, fMessageClass, keyClass, classLoader,
+                Collections.newSetFromMap(new IdentityHashMap<>()), 0);
+    }
+
+    private static Object findFMessageInObject(Object object, Class<?> fMessageClass, Class<?> keyClass,
+                                               ClassLoader classLoader, Set<Object> visited, int depth) {
+        if (object == null) return null;
+        if (depth > 4) return null;
+        if (fMessageClass != null && fMessageClass.isInstance(object)) return object;
+        if (!visited.add(object)) return null;
+
+        Object containerMatch = findFMessageInContainer(object, fMessageClass, keyClass, classLoader, visited, depth);
+        if (containerMatch != null) return containerMatch;
+
+        boolean debug = object.getClass().getName().contains("8hO");
+        if (debug) {
+            ;
+        }
+
+        // 1. Search for a direct field of type fMessageClass
+        if (fMessageClass != null) {
+            Field field = getFieldByExtendType(object.getClass(), fMessageClass);
+            if (field != null) {
+                Object val = getObjectField(field, object);
+                if (val != null && fMessageClass.isInstance(val)) {
+                    if (debug) ;
+                    return val;
+                }
+            }
+        }
+
+        // 2. Search for a field of type keyClass
+        if (keyClass != null) {
+            Field field = getFieldByExtendType(object.getClass(), keyClass);
+            if (field != null) {
+                Object val = getObjectField(field, object);
+                if (val != null && keyClass.isInstance(val)) {
+                    if (debug) ;
+                    try {
+                        Object fmsg = com.waenhancer.xposed.core.WppCore.getFMessageFromKey(val);
+                        if (fmsg != null) return fmsg;
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
+
+        // 3. Class hierarchy nested search
+        Class<?> currentClass = object.getClass();
+        while (currentClass != null && currentClass != Object.class) {
+            if (debug) {
+                XposedBridge.log("[WAE-DEBUG] Scanning class level: " + currentClass.getName());
+            }
+            List<Field> fields = getCachedDeclaredFields(currentClass);
+            for (Field field : fields) {
+                if (field.getType().isPrimitive() || field.getType().getName().startsWith("java.") || field.getType().getName().startsWith("android.")) {
+                    continue;
+                }
+                field.setAccessible(true);
+                try {
+                    Object nestedObj = field.get(object);
+                    if (debug) {
+                        ;
+                        if (nestedObj != null && nestedObj.getClass().getName().contains("8gx")) {
+                            ;
+                            for (Field f : getCachedDeclaredFields(nestedObj.getClass())) {
+                                f.setAccessible(true);
+                                try {
+                                    ;
+                                } catch (Exception e) {
+                                    XposedBridge.log("[WAE-DEBUG]   8gx Field read error: " + f.getName() + " -> " + e);
+                                }
+                            }
+                        }
+                    }
+                    if (nestedObj != null) {
+                        Object nestedContainerMatch = findFMessageInContainer(nestedObj, fMessageClass, keyClass, classLoader, visited, depth + 1);
+                        if (nestedContainerMatch != null) {
+                            return nestedContainerMatch;
+                        }
+                        if (fMessageClass != null && fMessageClass.isInstance(nestedObj)) {
+                            if (debug) ;
+                            return nestedObj;
+                        }
+                        if (fMessageClass != null) {
+                            Field nestedFMsgField = getFieldByExtendType(nestedObj.getClass(), fMessageClass);
+                            if (debug) {
+                                ;
+                            }
+                            if (nestedFMsgField != null) {
+                                Object val = getObjectField(nestedFMsgField, nestedObj);
+                                if (val != null && fMessageClass.isInstance(val)) {
+                                    if (debug) ;
+                                    return val;
+                                }
+                            }
+                        }
+                        // Check fields of nestedObj for any Key (type-based OR toString-based)
+                        for (Field nestedKeyField : getCachedDeclaredFields(nestedObj.getClass())) {
+                            nestedKeyField.setAccessible(true);
+                            try {
+                                Object val = nestedKeyField.get(nestedObj);
+                                if (val != null) {
+                                    boolean isKey = false;
+                                    if (keyClass != null && keyClass.isInstance(val)) {
+                                        isKey = true;
+                                    } else {
+                                        String valStr = val.toString();
+                                        if (valStr != null && (valStr.startsWith("Key(id=") || valStr.startsWith("Key("))) {
+                                            isKey = true;
+                                        }
+                                    }
+                                    if (isKey) {
+                                        if (debug) ;
+                                        Object targetKey = val;
+                                        if (keyClass != null && !keyClass.isInstance(val)) {
+                                            targetKey = convertToRealKey(val, classLoader, debug);
+                                        }
+                                        if (targetKey != null) {
+                                            try {
+                                                Object fmsg = com.waenhancer.xposed.core.WppCore.getFMessageFromKey(targetKey);
+                                                if (fmsg != null) return fmsg;
+                                            } catch (Exception e) {
+                                                if (debug) XposedBridge.log("[WAE-DEBUG] Error getting message from key: " + e);
+                                            }
+                                        }
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                        Object recursiveMatch = findFMessageInObject(nestedObj, fMessageClass, keyClass, classLoader, visited, depth + 1);
+                        if (recursiveMatch != null) {
+                            return recursiveMatch;
+                        }
+                    }
+                } catch (Exception e) {
+                    if (debug) XposedBridge.log("[WAE-DEBUG] Error reading field: " + field.getName() + " -> " + e);
+                }
+            }
+            currentClass = currentClass.getSuperclass();
+        }
+
+        return null;
+    }
+
+    private static Object findFMessageInContainer(Object object, Class<?> fMessageClass, Class<?> keyClass,
+                                                  ClassLoader classLoader, Set<Object> visited, int depth) {
+        if (object == null || depth > 4) return null;
+
+        if (object instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                Object match = findFMessageInObject(item, fMessageClass, keyClass, classLoader, visited, depth + 1);
+                if (match != null) return match;
+            }
+        } else if (object.getClass().isArray() && !object.getClass().getComponentType().isPrimitive()) {
+            Object[] array = (Object[]) object;
+            for (Object item : array) {
+                Object match = findFMessageInObject(item, fMessageClass, keyClass, classLoader, visited, depth + 1);
+                if (match != null) return match;
+            }
+        }
+        return null;
+    }
+
+    private static final java.util.concurrent.ConcurrentHashMap<Class<?>, List<Field>> declaredFieldsCache = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static List<Field> getCachedDeclaredFields(Class<?> clazz) {
+        if (clazz == null) return Collections.emptyList();
+        return declaredFieldsCache.computeIfAbsent(clazz, c -> {
+            try {
+                return Arrays.asList(c.getDeclaredFields());
+            } catch (Throwable t) {
+                return Collections.emptyList();
+            }
+        });
+    }
+
 }

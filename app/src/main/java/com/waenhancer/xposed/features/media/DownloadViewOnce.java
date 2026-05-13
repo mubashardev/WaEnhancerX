@@ -26,6 +26,8 @@ import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
 public class DownloadViewOnce extends Feature {
+    private static final int MENU_ID_DOWNLOAD = 0x7EAD0003;
+
     public DownloadViewOnce(@NonNull ClassLoader classLoader, @NonNull SharedPreferences preferences) {
         super(classLoader, preferences);
     }
@@ -52,24 +54,46 @@ public class DownloadViewOnce extends Feature {
                 @Override
                 @SuppressLint("DiscouragedApi")
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    var fmessageField = ReflectionUtils.getFieldByExtendType(param.thisObject.getClass(), FMessageWpp.TYPE);
+                    if (DEBUG) ;
+                    
                     Object fmessageObj = null;
-                    if (fmessageField != null) {
-                        fmessageObj = fmessageField.get(param.thisObject);
-                    }
-                    if (fmessageObj == null) {
-                        var keyField = ReflectionUtils.getFieldByExtendType(param.thisObject.getClass(), FMessageWpp.Key.TYPE);
-                        if (keyField != null) {
-                            var keyObj = keyField.get(param.thisObject);
-                            fmessageObj = WppCore.getFMessageFromKey(keyObj);
+                    var fields = ReflectionUtils.getFieldsByExtendType(param.thisObject.getClass(), FMessageWpp.TYPE);
+                    if (!fields.isEmpty()) {
+                        for (var field : fields) {
+                            fmessageObj = field.get(param.thisObject);
+                            if (fmessageObj != null) break;
                         }
                     }
+                    
+                    if (fmessageObj == null) {
+                        var keyFields = ReflectionUtils.getFieldsByExtendType(param.thisObject.getClass(), FMessageWpp.Key.TYPE);
+                        if (!keyFields.isEmpty()) {
+                            for (var field : keyFields) {
+                                var keyObj = field.get(param.thisObject);
+                                if (keyObj != null) {
+                                    fmessageObj = WppCore.getFMessageFromKey(keyObj);
+                                    if (fmessageObj != null) break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (fmessageObj == null) {
+                        if (DEBUG) ;
+                        return;
+                    }
+                    
                     FMessageWpp fMessage = new FMessageWpp(fmessageObj);
+                    if (DEBUG) ;
 
                     // check media is view once
                     if (!fMessage.isViewOnce()) return;
                     Menu menu = (Menu) param.args[0];
-                    MenuItem item = menu.add(0, 0, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.download)).setIcon(R.drawable.download);
+                    
+                    // Guard against duplicate entries
+                    if (menu.findItem(MENU_ID_DOWNLOAD) != null) return;
+                    
+                    MenuItem item = menu.add(0, MENU_ID_DOWNLOAD, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.download, "Download")).setIcon(R.drawable.download);
                     item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
                     item.setOnMenuItemClickListener(item1 -> {
                         try {
@@ -93,24 +117,39 @@ public class DownloadViewOnce extends Feature {
                     new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                            if (DEBUG) ;
+                            
                             Menu menu = (Menu) param.args[0];
-                            MenuItem item = menu.add(0, 0, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.download)).setIcon(R.drawable.download);
+                            
+                            // Guard against duplicate entries
+                            if (menu.findItem(MENU_ID_DOWNLOAD) != null) return;
+                            
+                            MenuItem item = menu.add(0, MENU_ID_DOWNLOAD, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.R.string.download, "Download")).setIcon(R.drawable.download);
                             item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
                             item.setOnMenuItemClickListener(item1 -> {
                                 CompletableFuture.runAsync(() -> {
-                                    var keyClass = FMessageWpp.Key.TYPE;
-                                    var fieldType = ReflectionUtils.getFieldByType(param.thisObject.getClass(), keyClass);
-                                    var keyMessageObj = ReflectionUtils.getObjectField(fieldType, param.thisObject);
-                                    var fmessage = new FMessageWpp.Key(keyMessageObj).getFMessage();
-                                    var file = fmessage.getMediaFile();
-                                    if (file == null) {
-                                        Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download_not_available), 1);
-                                        return;
-                                    }
-                                    var userJid = fmessage.getKey().remoteJid;
                                     try {
+                                        var keyClass = FMessageWpp.Key.TYPE;
+                                        var fieldType = ReflectionUtils.getFieldByType(param.thisObject.getClass(), keyClass);
+                                        var keyMessageObj = ReflectionUtils.getObjectField(fieldType, param.thisObject);
+                                        if (keyMessageObj == null) {
+                                            if (DEBUG) ;
+                                            return;
+                                        }
+                                        var fmessage = new FMessageWpp.Key(keyMessageObj).getFMessage();
+                                        if (fmessage == null) {
+                                            if (DEBUG) ;
+                                            return;
+                                        }
+                                        var file = fmessage.getMediaFile();
+                                        if (file == null) {
+                                            Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download_not_available), 1);
+                                            return;
+                                        }
+                                        var userJid = fmessage.getKey().remoteJid;
                                         downloadFile(userJid, file);
                                     } catch (Exception e) {
+                                        XposedBridge.log("[WAE] DownloadViewOnce Error: " + e.getMessage());
                                         Utils.showToast(e.getMessage(), Toast.LENGTH_LONG);
                                     }
                                 });

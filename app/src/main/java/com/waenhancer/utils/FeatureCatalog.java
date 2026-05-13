@@ -66,6 +66,14 @@ public class FeatureCatalog {
                                 "general_home",
                                 Arrays.asList("update", "check", "automatic")));
 
+                catalog.add(new SearchableFeature("update_alert_frequency",
+                                context.getString(R.string.update_frequency_title),
+                                context.getString(R.string.update_frequency_summary),
+                                SearchableFeature.Category.GENERAL_HOME,
+                                SearchableFeature.FragmentType.ACTIVITY,
+                                "UpdateSettingsActivity",
+                                Arrays.asList("update", "alert", "frequency", "ignore", "dialog", "reappear")));
+
                 catalog.add(new SearchableFeature("disable_expiration",
                                 context.getString(R.string.disable_whatsapp_expiration),
                                 context.getString(R.string.disable_whatsapp_expiration_sum),
@@ -420,6 +428,14 @@ public class FeatureCatalog {
                                 "conversation",
                                 Arrays.asList("copy", "stamp", "copied", "messages")));
 
+                catalog.add(new SearchableFeature("message_device_source",
+                                context.getString(R.string.show_message_device_source),
+                                context.getString(R.string.show_message_device_source_sum),
+                                SearchableFeature.Category.GENERAL_CONVERSATION,
+                                SearchableFeature.FragmentType.GENERAL,
+                                "conversation",
+                                Arrays.asList("device", "source", "linked", "primary", "desktop", "phone")));
+
                 catalog.add(new SearchableFeature("doubletap2like",
                                 context.getString(R.string.double_click_to_react),
                                 context.getString(R.string.double_click_to_like_sum),
@@ -508,6 +524,14 @@ public class FeatureCatalog {
                                 SearchableFeature.FragmentType.GENERAL,
                                 null,
                                 Arrays.asList("toast", "viewed", "status", "notification")));
+
+                catalog.add(new SearchableFeature("disable_ads",
+                                context.getString(R.string.disable_ads),
+                                context.getString(R.string.disable_ads_sum),
+                                SearchableFeature.Category.PRIVACY,
+                                SearchableFeature.FragmentType.PRIVACY,
+                                null,
+                                Arrays.asList("ads", "disable", "status", "stories", "advertising")));
 
                 // PRIVACY FRAGMENT
                 catalog.add(new SearchableFeature("typearchive",
@@ -898,6 +922,14 @@ public class FeatureCatalog {
                                 SearchableFeature.FragmentType.CUSTOMIZATION,
                                 null,
                                 Arrays.asList("admin", "group", "icon")));
+
+                catalog.add(new SearchableFeature("admin_emoji",
+                                context.getString(R.string.admin_emoji_title),
+                                context.getString(R.string.admin_emoji_sum),
+                                SearchableFeature.Category.CUSTOMIZATION,
+                                SearchableFeature.FragmentType.CUSTOMIZATION,
+                                "admin_grp",
+                                Arrays.asList("admin", "group", "emoji", "text", "indicator")));
 
                 catalog.add(new SearchableFeature("floatingmenu",
                                 context.getString(R.string.new_context_menu_ui),

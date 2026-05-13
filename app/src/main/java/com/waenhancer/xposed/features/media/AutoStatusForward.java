@@ -514,7 +514,7 @@ public class AutoStatusForward extends Feature {
     private void forwardMediaStatus(FMessageWpp status, String jidRaw) {
         var file = status.getMediaFile();
         if (file == null || !file.exists()) {
-            Utils.showToast("⚠️ Status media not cached.", Toast.LENGTH_LONG);
+            // Utils.showToast("⚠️ Status media not cached.", Toast.LENGTH_LONG);
             log("AutoStatusForward – media forward skipped: cached file missing for status"
                     + " [statusType=" + describeStatusType(status)
                     + ", statusText=" + safeText(status.getMessageStr()) + "]");
