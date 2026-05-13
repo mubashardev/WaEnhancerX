@@ -19,3 +19,4 @@ ref
 .env
 google-services.json
 app/google-services.json
+.claude

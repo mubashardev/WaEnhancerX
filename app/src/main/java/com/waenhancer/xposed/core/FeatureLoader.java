@@ -588,7 +588,7 @@ public class FeatureLoader {
                 if (isLoaded) return;
                 
                 var dialog = new AlertDialogWpp(activity)
-                        .setTitle("WaEnhancer")
+                        .setTitle("WaEnhancerX")
                         .setMessage("Hooking in to WhatsApp cache. Please wait...")
                         .setCancelable(false)
                         .show();

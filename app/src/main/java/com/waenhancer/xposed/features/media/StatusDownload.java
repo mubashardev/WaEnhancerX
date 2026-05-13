@@ -53,7 +53,7 @@ public class StatusDownload extends Feature {
             @Override
             public void onClick(MenuItem item, Object fragmentInstance, List<FMessageWpp> fMessageList, int currentIndex) {
                 var fMessage = fMessageList.get(currentIndex);
-                downloadFile(fMessage);
+                downloadFile(fMessage, fragmentInstance, currentIndex);
             }
         };
         MenuStatusListener.getMenuStatuses().add(downloadStatus);
@@ -71,13 +71,13 @@ public class StatusDownload extends Feature {
             @Override
             public void onClick(MenuItem item, Object fragmentInstance, List<FMessageWpp> fMessageList, int currentIndex) {
                 var fMessageWpp = fMessageList.get(currentIndex);
-                sharedStatus(fMessageWpp);
+                sharedStatus(fMessageWpp, fragmentInstance, currentIndex);
             }
         };
         MenuStatusListener.getMenuStatuses().add(sharedMenu);
     }
 
-    private void sharedStatus(FMessageWpp fMessageWpp) {
+    private void sharedStatus(FMessageWpp fMessageWpp, Object fragmentInstance, int currentIndex) {
         try {
             if (!fMessageWpp.isMediaFile()) {
                 // Text-only status: open the text status composer
@@ -96,6 +96,9 @@ public class StatusDownload extends Feature {
             }
 
             var file = fMessageWpp.getMediaFile();
+            if (file == null) {
+                file = getFileFromRawStatus(fragmentInstance, currentIndex, fMessageWpp);
+            }
             if (file == null) {
                 Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download_not_available, "Please wait until it is fully downloaded in WhatsApp before trying again."), Toast.LENGTH_SHORT);
                 return;
@@ -127,9 +130,12 @@ public class StatusDownload extends Feature {
         }
     }
 
-    private void downloadFile(FMessageWpp fMessage) {
+    private void downloadFile(FMessageWpp fMessage, Object fragmentInstance, int currentIndex) {
         try {
             var file = fMessage.getMediaFile();
+            if (file == null) {
+                file = getFileFromRawStatus(fragmentInstance, currentIndex, fMessage);
+            }
             if (file == null) {
                 Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download_not_available, "Please wait until it is fully downloaded in WhatsApp before trying again."), 1);
                 return;
@@ -173,6 +179,70 @@ public class StatusDownload extends Feature {
             folderPath = "Status Media";
         }
         return Utils.getDestination(folderPath);
+    }
+
+    private File getFileFromRawStatus(Object fragmentInstance, int currentIndex, FMessageWpp fMessage) {
+        if (fragmentInstance == null || currentIndex < 0) return null;
+        try {
+            Class<?> fragmentClass = fragmentInstance.getClass();
+            if (fragmentClass.getName().endsWith("StatusPlaybackContactFragment")) {
+                java.lang.reflect.Field listStatusField = com.waenhancer.xposed.utils.ReflectionUtils.getFieldByExtendType(
+                        fragmentClass, List.class);
+                if (listStatusField != null) {
+                    List<?> rawList = (List<?>) listStatusField.get(fragmentInstance);
+                    if (rawList != null && currentIndex < rawList.size()) {
+                        Object rawStatusObj = rawList.get(currentIndex);
+                        return findNestedFile(rawStatusObj, new java.util.HashSet<>(), 0);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        // Fallback: search the fMessage object itself just in case
+        return findNestedFile(fMessage.getObject(), new java.util.HashSet<>(), 0);
+    }
+
+    private File findNestedFile(Object object, java.util.Set<Object> visited, int depth) {
+        if (object == null || depth > 6) return null;
+        if (!visited.add(object)) return null;
+
+        if (object instanceof File file) {
+            return file.exists() ? file : null;
+        }
+
+        if (object instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                File match = findNestedFile(item, visited, depth + 1);
+                if (match != null) return match;
+            }
+            return null;
+        }
+
+        if (object.getClass().isArray() && !object.getClass().getComponentType().isPrimitive()) {
+            Object[] array = (Object[]) object;
+            for (Object item : array) {
+                File match = findNestedFile(item, visited, depth + 1);
+                if (match != null) return match;
+            }
+            return null;
+        }
+
+        Class<?> current = object.getClass();
+        while (current != null && current != Object.class && !current.getName().startsWith("java.") && !current.getName().startsWith("android.")) {
+            for (java.lang.reflect.Field field : current.getDeclaredFields()) {
+                if (field.getType().isPrimitive()) continue;
+                try {
+                    field.setAccessible(true);
+                    Object nested = field.get(object);
+                    File match = findNestedFile(nested, visited, depth + 1);
+                    if (match != null) return match;
+                } catch (Throwable ignored) {
+                }
+            }
+            current = current.getSuperclass();
+        }
+
+        return null;
     }
 
 }
