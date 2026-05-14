@@ -88,7 +88,7 @@ public class Utils {
     public static void openModule(Context context) {
         try {
             Intent intent = new Intent();
-            intent.setComponent(new ComponentName("com.waenhancer", "com.waenhancer.MainActivity"));
+            intent.setComponent(new ComponentName("com.waenhancer", "com.waenhancer.xposed.features.others.EmbeddedSettingsActivity"));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
         } catch (Exception e) {
