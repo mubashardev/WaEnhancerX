@@ -11,6 +11,7 @@ import android.widget.BaseAdapter;
 import androidx.annotation.NonNull;
 
 import com.waenhancer.xposed.core.Feature;
+import com.waenhancer.xposed.core.PerfLogger;
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.db.MessageStore;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
@@ -56,9 +57,13 @@ public class SeparateGroup extends Feature {
     }
 
     public void doHook() throws Exception {
+        // Keep this feature disabled for now. Recent WhatsApp home-tab changes
+        // make these hooks expensive and they introduce visible swipe jank.
+        if (!prefs.getBoolean("separategroups", false)) return;
+        if (isTemporarilyDisabled()) return;
+
         var cFragClass = XposedHelpers.findClass("com.whatsapp.conversationslist.ConversationsFragment", classLoader);
 
-        if (!prefs.getBoolean("separategroups", false)) return;
         if (!isSupportedVersion()) {
             ;
             return;
@@ -75,6 +80,10 @@ public class SeparateGroup extends Feature {
     @Override
     public String getPluginName() {
         return "Separate Group";
+    }
+
+    private boolean isTemporarilyDisabled() {
+        return true;
     }
 
     private boolean isSupportedVersion() {
@@ -118,6 +127,7 @@ public class SeparateGroup extends Feature {
             @Override
             @SuppressLint({"Range", "Recycle"})
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                long perfStart = PerfLogger.start();
                 var indexTab = (int) param.args[2];
                 int chatsIndex = tabs.indexOf(CHATS);
                 int groupsIndex = tabs.indexOf(GROUPS);
@@ -141,6 +151,7 @@ public class SeparateGroup extends Feature {
                             : constructor2.newInstance(cachedGroupCount);
                     param.args[1] = constructor1.newInstance(instance2);
                 }
+                PerfLogger.end("SeparateGroup.tabCount", perfStart, 1);
             }
         });
     }
@@ -333,6 +344,7 @@ public class SeparateGroup extends Feature {
     }
 
     private List filterChat(Object thiz, List chatsList) {
+        long perfStart = PerfLogger.start();
         var tabChat = tabInstances.get(CHATS);
         var tabGroup = tabInstances.get(GROUPS);
         if (!Objects.equals(tabChat, thiz) && !Objects.equals(tabGroup, thiz)) {
@@ -342,6 +354,7 @@ public class SeparateGroup extends Feature {
         synchronized (FILTER_CACHE) {
             var cached = FILTER_CACHE.get(chatsList);
             if (cached != null && cached.sourceSize == chatsList.size()) {
+                PerfLogger.end("SeparateGroup.filterChat.cached." + (isGroupTab ? "groups" : "chats"), perfStart, 1);
                 return isGroupTab ? cached.groupList : cached.chatList;
             }
         }
@@ -359,6 +372,7 @@ public class SeparateGroup extends Feature {
         synchronized (FILTER_CACHE) {
             FILTER_CACHE.put(chatsList, new FilterCacheEntry(chatsList.size(), chatList, groupList));
         }
+        PerfLogger.end("SeparateGroup.filterChat.build." + (isGroupTab ? "groups" : "chats"), perfStart, 1);
         return isGroupTab ? groupList : chatList;
     }
 

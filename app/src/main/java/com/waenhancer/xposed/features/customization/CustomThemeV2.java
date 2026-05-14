@@ -29,6 +29,7 @@ import androidx.core.content.ContextCompat;
 import com.waenhancer.utils.IColors;
 import com.waenhancer.views.WallpaperView;
 import com.waenhancer.xposed.core.Feature;
+import com.waenhancer.xposed.core.PerfLogger;
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.utils.DesignUtils;
@@ -238,11 +239,13 @@ public class CustomThemeV2 extends Feature {
                 new XC_MethodHook() {
                     @Override
                     protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        long perfStart = PerfLogger.start();
                         if (checkNotHomeActivity())
                             return;
                         var viewGroup = (ViewGroup) param.getResult();
                         if (viewGroup == null) return;
                         replaceColors(viewGroup, wallAlpha);
+                        PerfLogger.end("CustomThemeV2.fragmentView", perfStart, 1);
                     }
                 });
 
@@ -250,6 +253,7 @@ public class CustomThemeV2 extends Feature {
         XposedBridge.hookAllMethods(loadTabFrameClass, "onAttachedToWindow", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                long perfStart = PerfLogger.start();
                 var viewGroup = (ViewGroup) param.thisObject;
                 if (checkNotHomeActivity())
                     return;
@@ -261,6 +265,7 @@ public class CustomThemeV2 extends Feature {
                 }
                 var background = viewGroup.getBackground();
                 replaceColor(background, navAlpha);
+                PerfLogger.end("CustomThemeV2.tabFrameAttach", perfStart, 1);
             }
         });
 
@@ -292,6 +297,7 @@ public class CustomThemeV2 extends Feature {
         XposedBridge.hookAllMethods(resourceImpl, "loadDrawable", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                long perfStart = PerfLogger.start();
                 // Suppress Resources$NotFoundException from drawables with unsupported
                 // XML elements (e.g. 'gradient' class in $status_tile_overlay_sdk_24__0).
                 // Without this, the exception propagates through the hook and crashes WhatsApp.
@@ -315,6 +321,7 @@ public class CustomThemeV2 extends Feature {
                     }
                 }
                 replaceColor(drawable, IColors.colors);
+                PerfLogger.end("CustomThemeV2.loadDrawable", perfStart, 1);
             }
         });
 

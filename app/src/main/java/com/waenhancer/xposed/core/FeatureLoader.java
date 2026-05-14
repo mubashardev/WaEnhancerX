@@ -19,6 +19,7 @@ import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
 
 import com.waenhancer.App;
+import com.waenhancer.xposed.bridge.client.ProviderSharedPreferences;
 import com.waenhancer.BuildConfig;
 import com.waenhancer.UpdateChecker;
 import com.waenhancer.xposed.core.components.AlertDialogWpp;
@@ -122,8 +123,6 @@ import android.os.Looper;
 import android.widget.Toast;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
-import lombok.Getter;
-import lombok.Setter;
 
 public class FeatureLoader {
     public static Application mApp;
@@ -401,20 +400,19 @@ public class FeatureLoader {
 
         WppCore.addListenerActivity((activity, state) -> {
             if (state == WppCore.ActivityChangeState.ChangeType.RESUMED) {
-                if (!isHomeActivity(activity)) {
-                    return;
-                }
-
                 activity.getWindow().getDecorView().post(() -> {
+                    long perfStart = PerfLogger.start();
                     try {
-                        if (pref instanceof XSharedPreferences) {
-                            ((XSharedPreferences) pref).reload();
-                        }
-
                         long now = System.currentTimeMillis();
                         long previous = lastRestartCheckMs.get();
                         if (now - previous < 1500 || !lastRestartCheckMs.compareAndSet(previous, now)) {
                             return;
+                        }
+
+                        if (pref instanceof XSharedPreferences) {
+                            ((XSharedPreferences) pref).reload();
+                        } else if (pref instanceof ProviderSharedPreferences) {
+                            ((ProviderSharedPreferences) pref).reload();
                         }
 
                         boolean needRestartPref = pref.getBoolean("need_restart", false);
@@ -428,6 +426,9 @@ public class FeatureLoader {
                         }
 
                         if ((needRestartPref || needRestartGlobal) && !isRestartDialogShowing) {
+                            if (isHomeActivity(activity)) {
+                                activity.invalidateOptionsMenu();
+                            }
                             isRestartDialogShowing = true;
                             String msg = getModuleString(ResId.string.restart_wpp);
                             String btnRestart = getModuleString(ResId.string.restart_whatsapp);
@@ -452,8 +453,6 @@ public class FeatureLoader {
                             if (btnRestart.isEmpty()) btnRestart = "Restart WhatsApp";
                             if (btnCancel.isEmpty()) btnCancel = "Cancel";
 
-                            ;
-                            
                             new AlertDialogWpp(activity)
                                     .setTitle("Restart Required")
                                     .setMessage(msg)
@@ -473,7 +472,9 @@ public class FeatureLoader {
                                     .show();
                         }
                     } catch (Throwable e) {
-                        XposedBridge.log("[WAE] Error during post-resume home check: " + e.getMessage());
+                        XposedBridge.log("[WAE] Error during activity resume check: " + e.getMessage());
+                    } finally {
+                        PerfLogger.end("FeatureLoader.activityResumeCheck", perfStart, 1);
                     }
                 });
 
@@ -548,6 +549,22 @@ public class FeatureLoader {
         };
         ContextCompat.registerReceiver(mApp, clearCacheReceiver,
                 new IntentFilter(BuildConfig.APPLICATION_ID + ".CLEAR_OBFUSCATE_CACHE"), ContextCompat.RECEIVER_EXPORTED);
+
+        // Preference change receiver
+        BroadcastReceiver prefsChangedReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (Utils.xprefs != null) {
+                    if (Utils.xprefs instanceof com.waenhancer.xposed.bridge.client.ProviderSharedPreferences) {
+                        ((com.waenhancer.xposed.bridge.client.ProviderSharedPreferences) Utils.xprefs).reload();
+                    } else if (Utils.xprefs instanceof de.robv.android.xposed.XSharedPreferences) {
+                        ((de.robv.android.xposed.XSharedPreferences) Utils.xprefs).reload();
+                    }
+                }
+            }
+        };
+        ContextCompat.registerReceiver(mApp, prefsChangedReceiver,
+                new IntentFilter(BuildConfig.APPLICATION_ID + ".PREFS_CHANGED"), ContextCompat.RECEIVER_EXPORTED);
     }
 
     private static void sendEnabledBroadcast(Context context) {
@@ -577,6 +594,9 @@ public class FeatureLoader {
         // But for now, we only trigger if needsSnackbar is true (which is set after background load)
         needsSnackbar = false;
         Utils.showSnackbar(WppCore.mCurrentActivity, "Hooks loaded in " + loadedTimeStr);
+        if (isHomeActivity(WppCore.mCurrentActivity)) {
+            WppCore.mCurrentActivity.invalidateOptionsMenu();
+        }
     }
 
     private static boolean isHomeActivity(@NonNull Activity activity) {
@@ -823,14 +843,23 @@ public class FeatureLoader {
         }
     }
 
-    @Getter
-    @Setter
     private static class ErrorItem {
         private String pluginName;
         private String whatsAppVersion;
         private String error;
         private String moduleVersion;
         private String message;
+
+        public String getPluginName() { return pluginName; }
+        public void setPluginName(String pluginName) { this.pluginName = pluginName; }
+        public String getWhatsAppVersion() { return whatsAppVersion; }
+        public void setWhatsAppVersion(String whatsAppVersion) { this.whatsAppVersion = whatsAppVersion; }
+        public String getError() { return error; }
+        public void setError(String error) { this.error = error; }
+        public String getModuleVersion() { return moduleVersion; }
+        public void setModuleVersion(String moduleVersion) { this.moduleVersion = moduleVersion; }
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
 
         @NonNull
         @Override

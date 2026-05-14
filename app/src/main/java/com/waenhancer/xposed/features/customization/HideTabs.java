@@ -10,6 +10,7 @@ import android.view.View;
 import androidx.annotation.NonNull;
 
 import com.waenhancer.xposed.core.Feature;
+import com.waenhancer.xposed.core.PerfLogger;
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.utils.ReflectionUtils;
@@ -75,6 +76,7 @@ public class HideTabs extends Feature {
         XposedHelpers.findAndHookMethod(WppCore.getHomeActivityClass(classLoader), "onCreate", Bundle.class, new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                long perfStart = PerfLogger.start();
                 Class<?> TabsPagerClass = WppCore.getTabsPagerClass(classLoader);
                 var tabsField = ReflectionUtils.getFieldByType(param.thisObject.getClass(), TabsPagerClass);
                 mTabPagerInstance = tabsField.get(param.thisObject);
@@ -101,6 +103,7 @@ public class HideTabs extends Feature {
                         }
                     } catch (Exception ignored) {}
                 }
+                PerfLogger.end("HideTabs.homeOnCreate", perfStart, 1);
             }
         });
 
@@ -110,11 +113,13 @@ public class HideTabs extends Feature {
         XposedBridge.hookMethod(onMenuItemSelected, new XC_MethodHook() {
             @Override
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                long perfStart = PerfLogger.start();
                 if (param.thisObject == mTabPagerInstance) {
                     var index = (int) param.args[0];
                     var idxAtual = (int) XposedHelpers.callMethod(param.thisObject, "getCurrentItem");
                     param.args[0] = getNewTabIndex(hideTabsList, idxAtual, index);
                 }
+                PerfLogger.end("HideTabs.onMenuItemSelected", perfStart, 1);
             }
         });
     }
@@ -125,13 +130,30 @@ public class HideTabs extends Feature {
         return "Hide Tabs";
     }
 
-    public int getNewTabIndex(List hidetabs, int indexAtual, int index) {
-        if (tabs == null || tabs.size() <= index) return index;
-        var tabIsHidden = hidetabs.contains(tabs.get(index));
-        if (!tabIsHidden) return index;
-        var newIndex = index > indexAtual ? index + 1 : index - 1;
-        if (newIndex < 0) return 0;
-        if (newIndex >= tabs.size()) return indexAtual;
-        return getNewTabIndex(hidetabs, indexAtual, newIndex);
+    public int getNewTabIndex(List<?> hidetabs, int indexAtual, int index) {
+        if (tabs == null) return index;
+        
+        int target = index;
+        int direction = index > indexAtual ? 1 : -1;
+        
+        while (target >= 0 && target < tabs.size()) {
+            if (!hidetabs.contains(tabs.get(target))) {
+                return target;
+            }
+            target += direction;
+        }
+        
+        // Fallback: search in opposite direction if we went out of bounds
+        if (target < 0 || target >= tabs.size()) {
+            target = index - direction;
+            while (target >= 0 && target < tabs.size()) {
+                if (!hidetabs.contains(tabs.get(target))) {
+                    return target;
+                }
+                target -= direction;
+            }
+        }
+        
+        return indexAtual; // Final fallback
     }
 }

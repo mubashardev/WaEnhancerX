@@ -359,6 +359,12 @@ public class ReflectionUtils {
         return false;
     }
 
+    /**
+     * @deprecated Use {@code WppCore.getCurrentActivity()} or other faster checks.
+     * This method is extremely slow as it generates a full stack trace.
+     * NEVER use this in hot paths like property hooks or list item binding.
+     */
+    @Deprecated
     public synchronized static boolean isCalledFromClass(Class<?> cls) {
         var trace = Thread.currentThread().getStackTrace();
         for (StackTraceElement stackTraceElement : trace) {
@@ -368,6 +374,10 @@ public class ReflectionUtils {
         return false;
     }
 
+    /**
+     * @deprecated Use faster alternatives. Stack trace generation is slow.
+     */
+    @Deprecated
     public synchronized static boolean isCalledFromMethod(Method method) {
         var trace = Thread.currentThread().getStackTrace();
         for (StackTraceElement stackTraceElement : trace) {

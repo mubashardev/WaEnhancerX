@@ -19,6 +19,7 @@ import com.waenhancer.xposed.core.Feature;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.utils.DesignUtils;
 import com.waenhancer.R;
+import com.waenhancer.xposed.utils.Utils;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -139,7 +140,7 @@ public class SettingsInjector extends Feature {
             icon.setTint(0xff8696a0);
             button.setImageDrawable(icon);
         }
-        button.setOnClickListener(v -> MenuHome.showWaeSettingsDialog(activity));
+        button.setOnClickListener(v -> Utils.openModule(activity));
         return button;
     }
 
@@ -189,7 +190,7 @@ public class SettingsInjector extends Feature {
                 }
                 item.setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
                 item.setOnMenuItemClickListener(it -> {
-                    MenuHome.showWaeSettingsDialog(activity);
+                    Utils.openModule(activity);
                     return true;
                 });
             }

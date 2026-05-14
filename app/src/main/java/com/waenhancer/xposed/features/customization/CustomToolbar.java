@@ -16,6 +16,7 @@ import androidx.annotation.NonNull;
 
 import com.waenhancer.listeners.OnMultiClickListener;
 import com.waenhancer.xposed.core.Feature;
+import com.waenhancer.xposed.core.PerfLogger;
 import com.waenhancer.xposed.core.WppCore;
 import com.waenhancer.xposed.core.devkit.Unobfuscator;
 import com.waenhancer.xposed.features.general.Others;
@@ -142,6 +143,7 @@ public class CustomToolbar extends Feature {
 
         @Override
         protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+            long perfStart = PerfLogger.start();
             var homeActivity = (Activity) param.thisObject;
             ViewGroup toolbar = homeActivity.findViewById(Utils.getID("toolbar", "id"));
             var logo = toolbar.findViewById(Utils.getID("toolbar_logo", "id"));
@@ -162,6 +164,7 @@ public class CustomToolbar extends Feature {
 
             hideOriginalLogo(homeActivity, logo);
             setupTabVisibilityHook(tabInstance, toolbarLayout);
+            PerfLogger.end("CustomToolbar.homeOnCreate", perfStart, 1);
         }
 
         private Object getTabInstance(Activity homeActivity) throws Exception {
@@ -276,6 +279,7 @@ public class CustomToolbar extends Feature {
                 XposedBridge.hookMethod(onMenuItemSelected, new XC_MethodHook() {
                     @Override
                     protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                        long perfStart = PerfLogger.start();
                         var toolbarTarget = TAB_TOOLBAR_TARGETS.get(param.thisObject);
                         if (toolbarTarget == null) return;
                         var currentIndex = (int) param.args[0];
@@ -283,6 +287,7 @@ public class CustomToolbar extends Feature {
                         if (toolbarTarget.getVisibility() != visibility) {
                             toolbarTarget.setVisibility(visibility);
                         }
+                        PerfLogger.end("CustomToolbar.onMenuItemSelected", perfStart, 1);
                     }
                 });
                 tabVisibilityHookInstalled = true;

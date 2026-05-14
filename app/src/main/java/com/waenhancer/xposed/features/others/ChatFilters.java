@@ -22,7 +22,10 @@ public class ChatFilters extends Feature {
 
     @Override
     public void doHook() throws Throwable {
+        // Disabled alongside Separate Groups because both features patch the
+        // same home-tab/filter pipeline and are unstable on current builds.
         if (!prefs.getBoolean("separategroups", false)) return;
+        if (isTemporarilyDisabled()) return;
 
         var filterAdaperClass = Unobfuscator.loadFilterAdaperClass(classLoader);
         XposedBridge.hookAllConstructors(filterAdaperClass, new XC_MethodHook() {
@@ -69,5 +72,9 @@ public class ChatFilters extends Feature {
     @Override
     public String getPluginName() {
         return "Chat Filters";
+    }
+
+    private boolean isTemporarilyDisabled() {
+        return true;
     }
 }
