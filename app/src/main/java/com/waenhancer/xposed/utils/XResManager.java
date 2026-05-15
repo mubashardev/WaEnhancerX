@@ -28,14 +28,16 @@ public class XResManager {
             return moduleId;
         }
 
-        // Fast check: is it one of our resources?
-        if (validModuleIds.isEmpty() || !validModuleIds.contains(moduleId)) {
-            return moduleId;
-        }
-
+        // Check cache first
         Integer hostId = moduleToHostIdMap.get(moduleId);
         if (hostId != null) {
             return hostId;
+        }
+
+        // Skip if we have validModuleIds populated and this ID is not in it
+        // (allows skipping non-module IDs when the set is populated)
+        if (!validModuleIds.isEmpty() && !validModuleIds.contains(moduleId)) {
+            return moduleId;
         }
 
         // On-demand mapping
