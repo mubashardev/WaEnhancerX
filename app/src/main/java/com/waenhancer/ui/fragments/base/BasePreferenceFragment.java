@@ -48,8 +48,26 @@ public abstract class BasePreferenceFragment extends PreferenceFragmentCompat
         if (!isAdded() || getContext() == null) {
             return;
         }
-        Intent intent = new Intent(BuildConfig.APPLICATION_ID + ".MANUAL_RESTART");
-        App.getInstance().sendBroadcast(intent);
+        // Collect changed preference titles
+        java.util.ArrayList<String> titles = null;
+        try {
+            java.util.Set<String> changes = mPrefs.getStringSet("pending_restart_changes", null);
+            if (changes != null && !changes.isEmpty()) {
+                titles = new java.util.ArrayList<>(changes);
+            }
+        } catch (Exception ignored) {}
+
+        // Send to both WhatsApp variants (must target package explicitly)
+        for (String pkg : new String[]{"com.whatsapp", "com.whatsapp.w4b"}) {
+            Intent intent = new Intent(BuildConfig.APPLICATION_ID + ".MANUAL_RESTART");
+            intent.setPackage(pkg);
+            if (titles != null) {
+                intent.putStringArrayListExtra("changed_titles", titles);
+            }
+            App.getInstance().sendBroadcast(intent);
+        }
+        // Clear after sending so old titles don't accumulate
+        mPrefs.edit().remove("pending_restart_changes").apply();
     };
 
     @Override

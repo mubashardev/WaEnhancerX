@@ -398,6 +398,9 @@ public class FeatureLoader {
     private static void initComponents(ClassLoader loader, android.content.SharedPreferences pref) throws Exception {
         FMessageWpp.initialize(loader);
         WppCore.Initialize(loader, pref);
+        // Clear stale pending change titles from previous process.
+        // Must be after WppCore.Initialize() so privPrefs is available.
+        WppCore.setPrivString("pending_changes", "");
         DesignUtils.setPrefs(pref);
         Utils.init(loader);
         AlertDialogWpp.initDialog(loader);
@@ -441,6 +444,21 @@ public class FeatureLoader {
                             String btnRestart = getModuleString(ResId.string.restart_whatsapp);
                             String btnCancel = getModuleString(android.R.string.cancel);
 
+                            // Show which preferences changed
+                            String changedTitles = WppCore.getPrivString("pending_changes", "");
+                            if (!changedTitles.isEmpty()) {
+                                StringBuilder sb = new StringBuilder();
+                                if (!msg.isEmpty()) sb.append(msg).append("\n\n");
+                                else sb.append("WhatsApp needs to be restarted to apply the following changes:\n\n");
+                                sb.append("Changes:\n");
+                                for (String title : changedTitles.split("\\|")) {
+                                    if (!title.trim().isEmpty()) {
+                                        sb.append("• ").append(title.trim()).append("\n");
+                                    }
+                                }
+                                msg = sb.toString().trim();
+                            }
+
                             if (msg.isEmpty()) msg = "WhatsApp needs to be restarted to apply your recent changes in WaEnhancer. Would you like to restart now?";
                             if (btnRestart.isEmpty()) btnRestart = "Restart WhatsApp";
                             if (btnCancel.isEmpty()) btnCancel = "Cancel";
@@ -451,11 +469,13 @@ public class FeatureLoader {
                                     .setPositiveButton(btnRestart, (dialog, which) -> {
                                         isRestartDialogShowing = false;
                                         WppCore.setPrivBooleanSync("need_restart", false);
+                                        WppCore.setPrivString("pending_changes", "");
                                         Utils.doRestart(activity);
                                     })
                                     .setNegativeButton(btnCancel, (dialog, which) -> {
                                         isRestartDialogShowing = false;
                                         WppCore.setPrivBooleanSync("need_restart", false);
+                                        WppCore.setPrivString("pending_changes", "");
                                     })
                                     .show();
                         }
@@ -542,9 +562,22 @@ public class FeatureLoader {
         BroadcastReceiver restartManualReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                ;
                 WppCore.setPrivBooleanSync("need_restart", true);
-                ;
+                // Accumulate changed preference titles from the broadcast
+                try {
+                    java.util.ArrayList<String> titles = intent.getStringArrayListExtra("changed_titles");
+                    if (titles != null && !titles.isEmpty()) {
+                        String existing = WppCore.getPrivString("pending_changes", "");
+                        java.util.Set<String> all = new java.util.LinkedHashSet<>();
+                        if (!existing.isEmpty()) {
+                            for (String t : existing.split("\\|")) {
+                                if (!t.trim().isEmpty()) all.add(t.trim());
+                            }
+                        }
+                        all.addAll(titles);
+                        WppCore.setPrivString("pending_changes", String.join("|", all));
+                    }
+                } catch (Exception ignored) {}
             }
         };
         ContextCompat.registerReceiver(mApp, restartManualReceiver,
